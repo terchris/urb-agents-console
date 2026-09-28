@@ -1,0 +1,54 @@
+# Builds the console image and points manifests/deployment.yaml at it; ArgoCD does the rest.
+# The dev-templates pipeline (uis.sovereignsky.no → Developing → CI/CD Pipeline), with one build
+# instead of two: the app is built inside the Dockerfile only.
+#
+# Loop guard: changes under manifests/ do not trigger this workflow, and the commit it makes
+# touches nothing else.
+name: Build and push
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "manifests/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # commit the new image tag back to manifests/deployment.yaml
+  packages: write   # push the image to ghcr.io
+
+concurrency:
+  group: build-and-push
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unique image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}-$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${IMAGE_TAG}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Point the manifest at the new image
+        run: |
+          sed -i "s|image: ghcr.io/${GITHUB_REPOSITORY,,}:.*|image: ${IMAGE}|" manifests/deployment.yaml
+          git diff --quiet manifests/deployment.yaml && { echo "manifest unchanged"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifests/deployment.yaml
+          git commit -m "[ci-skip] deploy ${IMAGE_TAG}"
+          git pull --rebase origin main
+          git push origin HEAD:main

@@ -1,0 +1,53 @@
+# The console on UIS. Registered once as `fleet`:
+#   uis argocd register fleet https://github.com/terchris/urb-agents-console
+# The platform then routes fleet.<domain> (HostRegexp ^fleet\..+$) to the FIRST Service in the
+# namespace — marketing-style. api-fleet.<domain> is this repository's own route, in
+# ingressroute-api.yaml.
+#
+# The image tag is written by .github/workflows/build-and-push.yaml after every build. Do not edit
+# it by hand, and do not use :latest — ArgoCD follows git, not the registry.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-web
+  labels:
+    app: fleet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fleet
+  template:
+    metadata:
+      labels:
+        app: fleet
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/terchris/urb-agents-console:unbuilt
+          ports:
+            - containerPort: 3000
+          resources:
+            requests: { cpu: "20m", memory: "48Mi" }
+            limits: { cpu: "300m", memory: "192Mi" }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 3000 }
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+# The first Service in the namespace: the one the platform's fleet.<domain> route points at.
+apiVersion: v1
+kind: Service
+metadata:
+  name: fleet-service
+spec:
+  selector:
+    app: fleet
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000

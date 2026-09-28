@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - ingressroute-api.yaml
+labels:
+  - pairs:
+      app: fleet
+      managed-by: argocd
+commonAnnotations:
+  description: "urb-agents-console — the fleet, live (fleet.<domain>, api-fleet.<domain>)"
+  repository: "https://github.com/terchris/urb-agents-console"

@@ -1,0 +1,26 @@
+# api-fleet.<domain> — the PUBLIC, credential-free, read-only event feed.
+#
+# The `api-` prefix is a security decision, not a style: at the Cloudflare edge every api-* host
+# gets Access-Control-Allow-Origin: *, so any website's JavaScript may read it (UIS docs,
+# networking/cloudflare-setup.md, "api- and api. are reserved prefixes"). Only ever put
+# public, credential-free endpoints behind this host. Anything that needs a login belongs on
+# fleet.<domain>, same origin as the frontend.
+#
+# Same host pattern as UIS's own per-app PostgREST route (088-postgrest-ingressroute.yml.j2): one
+# rule matches every domain Traefik serves — *.localhost, a tailnet, a Cloudflare-tunnelled domain.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: fleet-api-ingressroute
+  labels:
+    app: fleet
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: "HostRegexp(`^api-fleet\\..+$`)"
+      kind: Rule
+      priority: 10
+      services:
+        - name: fleet-service
+          port: 80
