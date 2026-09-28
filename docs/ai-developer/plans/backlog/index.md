@@ -14,4 +14,4 @@ in progress.
 
 | Item | What it does | Priority |
 |---|---|---|
-| *(none yet — add INVESTIGATE/PLAN files beside this index)* | | |
+| [PLAN-001-phase1-fleet-live](PLAN-001-phase1-fleet-live.md) | Phase 1: collector → Postgres → public `/v1/events` + Hono JSX page | High |
