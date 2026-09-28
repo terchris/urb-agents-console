@@ -45,4 +45,4 @@ Screenshots at 24h (light), 7d with an agent selected (dark) and 30d at phone wi
 
 - [x] Only allowlisted ids and `others`; counts only, nothing beyond the contract
 - [x] Every value in a cell is also in the table view
-- [ ] Terje reviews it before it is pushed (pushing is publishing)
+- [x] Terje reviews it before it is pushed (pushing is publishing). Pushed on his word and live, 2026-09-28.
