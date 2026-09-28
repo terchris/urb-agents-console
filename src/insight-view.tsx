@@ -10,12 +10,13 @@
 // Everything is derived from what the page already has: the network, the agent summaries and the
 // activity buckets. Nothing here reads anything new from the store.
 import type { FC } from "hono/jsx";
-import { ALLOWLIST, OTHERS } from "./allowlist";
+import { named, OTHERS } from "./allowlist";
 import type { Event } from "./event";
 import { layoutOrder, type Laid } from "./network";
 import type { Href } from "./network-view";
 import type { Rhythm } from "./rhythm-view";
 import { span } from "./rhythm-view";
+import type { Profile } from "./directory";
 import type { AgentSummary } from "./store";
 
 /** An agent with an event in the last ten minutes counts as active now. */
@@ -97,8 +98,8 @@ function ago(iso: string, now: number): string {
   return `${Math.floor(s / 86_400)} d ago`;
 }
 
-export const Inventory: FC<{ agents: AgentSummary[]; network: Laid; rhythm: Rhythm; now: number; windowLabel: string; agent?: string; href: Href }> =
-  ({ agents, network, rhythm, now, windowLabel, agent, href }) => {
+export const Inventory: FC<{ agents: AgentSummary[]; network: Laid; rhythm: Rhythm; now: number; windowLabel: string; agent?: string; href: Href; profiles?: ReadonlyMap<string, Profile> }> =
+  ({ agents, network, rhythm, now, windowLabel, agent, href, profiles }) => {
     const events = new Map(network.nodes.map((n) => [n.id, n.events]));
     const counts = new Map(rhythm.agents.map((a) => [a.id, a.counts]));
     const active = activeNow(agents, now);
@@ -127,8 +128,17 @@ export const Inventory: FC<{ agents: AgentSummary[]; network: Laid; rhythm: Rhyt
                   data-name={a.id} data-events={events.get(a.id) ?? 0} data-opened={a.opened} data-received={a.received}
                   data-replied={a.replied} data-seen={Date.parse(a.lastSeen)}>
                   <th scope="row">
-                    {active.has(a.id) ? <span class="now" title="Active in the last 10 minutes" /> : <span class="now off" />}
-                    <a href={href({ agent: a.id === agent ? null : a.id })}>{a.id}</a>
+                    <span class="who-cell">
+                      {active.has(a.id) ? <span class="now" title="Active in the last 10 minutes" /> : <span class="now off" />}
+                      {profiles?.get(a.id)?.avatar
+                        ? <img class="av" src={profiles.get(a.id)!.avatar!} alt="" width="24" height="24" loading="lazy" />
+                        : <span class="av none" />}
+                      <span>
+                        <a href={href({ agent: a.id === agent ? null : a.id })}>{a.id}</a>
+                        {profiles?.get(a.id)?.page ? <a class="profile" href={profiles.get(a.id)!.page!} aria-label={`${a.id}'s page on marketing.urbalurba.com`}>↗</a> : null}
+                        {profiles?.get(a.id)?.role ? <span class="role">{profiles.get(a.id)!.role}</span> : null}
+                      </span>
+                    </span>
                   </th>
                   <td class="c-spark"><Sparkline counts={counts.get(a.id) ?? zeros} /></td>
                   <td class="n">{events.get(a.id) ?? 0}</td>
@@ -182,7 +192,7 @@ export const AgentPicker: FC<{ window: string; agent?: string }> = ({ window, ag
       <span>Follow</span>
       <select name="agent" id="agent-pick" aria-keyshortcuts="/">
         <option value="">everyone</option>
-        {layoutOrder().filter((id) => ALLOWLIST.has(id) || id === OTHERS).map((id) => (
+        {layoutOrder().filter((id) => named().has(id) || id === OTHERS).map((id) => (
           <option value={id} selected={id === agent}>{id}</option>
         ))}
       </select>

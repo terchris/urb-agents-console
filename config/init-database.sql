@@ -26,6 +26,15 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS events_at ON events (at DESC, id DESC);
 
+-- The last list of who may be named that the collector read from marketing's agents.json (#1687).
+-- Kept so a restart while marketing's site is down still has a list: the collector never names
+-- anyone without one. One row, 'named'.
+CREATE TABLE IF NOT EXISTS naming (
+    name    TEXT PRIMARY KEY,
+    ids     TEXT[] NOT NULL,
+    fetched TIMESTAMPTZ NOT NULL
+);
+
 -- Where the collector has read up to. One row per stream; 'events' is the only one.
 CREATE TABLE IF NOT EXISTS collector_mark (
     name   TEXT PRIMARY KEY,

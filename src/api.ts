@@ -7,7 +7,7 @@
 // strict: nothing else can be described or served.
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
-import { ALLOWLIST, OTHERS } from "./allowlist";
+import { named, OTHERS } from "./allowlist";
 import { KINDS, SCHEMA, type Event } from "./event";
 import type { Cursor, Store } from "./store";
 import { BUCKETS, bucketsFor, ZONE } from "./time";
@@ -73,7 +73,7 @@ export type Window = keyof typeof WINDOWS;
 const BUCKET_SIZE = { "24h": "1h", "7d": "6h", "30d": "1d" } as const satisfies Record<Window, string>;
 const WindowParam = z.enum(Object.keys(WINDOWS) as [Window, ...Window[]]).default("24h")
   .openapi({ description: "How far back to look" });
-const AgentParam = z.string().refine((v) => v === OTHERS || ALLOWLIST.has(v), "not an agent this feed names")
+const AgentParam = z.string().refine((v) => v === OTHERS || named().has(v), "not an agent this feed names")
   .openapi({ description: `A bus id the feed names, or \`${OTHERS}\``, example: "ops-dev" });
 
 const NetworkSchema = z

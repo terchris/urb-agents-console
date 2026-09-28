@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
-import { OTHERS } from "./allowlist";
-import { EVENT_FIELDS, parseEvent, parseEvents } from "./event";
+import { OTHERS, SNAPSHOT } from "./allowlist";
+import { EVENT_FIELDS, parseEvent as parseWith, parseEvents as parseAllWith } from "./event";
+
+// These tests fold with the snapshot of marketing's list; the collector folds with the live one.
+const parseEvent = (raw: unknown) => parseWith(raw, SNAPSHOT);
+const parseEvents = (text: string) => parseAllWith(text, SNAPSHOT);
 
 const row = {
   id: "a1b2c3", at: "2026-09-28T07:22:47Z", kind: "replied",

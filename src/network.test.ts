@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ALLOWLIST, OTHERS } from "./allowlist";
+import { OTHERS, SNAPSHOT as ALLOWLIST } from "./allowlist";
 import { BOX, curve, layout, layoutOrder, linkWidth, nodeRadius, positions } from "./network";
 
 test("every allowlisted agent has a fixed place, and others comes last", () => {

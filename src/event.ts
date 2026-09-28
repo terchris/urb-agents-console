@@ -43,7 +43,8 @@ function str(v: unknown, re: RegExp): string | null {
   return typeof v === "string" && re.test(v) ? v : null;
 }
 
-export function parseEvent(raw: unknown): Event | null {
+/** `named`: marketing's list of who may be named (src/allowlist.ts); every other id becomes `others`. */
+export function parseEvent(raw: unknown, named: ReadonlySet<string>): Event | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
 
@@ -59,9 +60,9 @@ export function parseEvent(raw: unknown): Event | null {
     id,
     at: at.toISOString(),
     kind,
-    from: fold(from),
-    to: to === null ? null : fold(to),
-    by: by === null ? null : fold(by),
+    from: fold(from, named),
+    to: to === null ? null : fold(to, named),
+    by: by === null ? null : fold(by, named),
     state: str(r.state, STATE),
     provider: str(r.provider, LABEL),
     model: str(r.model, LABEL),
@@ -71,7 +72,7 @@ export function parseEvent(raw: unknown): Event | null {
 // `urb events --json` output: { schema, since, until, events }. `until` is the moment the read
 // covered up to, which is the collector's next mark. A different schema is refused whole, so a
 // changed contract is never half-read.
-export function parseEvents(text: string): { events: Event[]; dropped: number; until: Date | null } {
+export function parseEvents(text: string, named: ReadonlySet<string>): { events: Event[]; dropped: number; until: Date | null } {
   const doc = JSON.parse(text) as { schema?: unknown; until?: unknown; events?: unknown };
   if (typeof doc !== "object" || doc === null || Array.isArray(doc)) throw new Error("urb events: not an object");
   if (doc.schema !== SCHEMA) throw new Error(`urb events: schema ${JSON.stringify(doc.schema)}, expected ${SCHEMA}`);
@@ -80,7 +81,7 @@ export function parseEvents(text: string): { events: Event[]; dropped: number; u
   const raws: unknown[] = doc.events;
   const events: Event[] = [];
   for (const raw of raws) {
-    const e = parseEvent(raw);
+    const e = parseEvent(raw, named);
     if (e) events.push(e);
   }
   return { events, dropped: raws.length - events.length, until: until && !Number.isNaN(until.getTime()) ? until : null };

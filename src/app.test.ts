@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createApp, NO_DATABASE } from "./app";
+import { DirectoryCache, parseDirectory } from "./directory";
 import { EVENT_FIELDS, type Event } from "./event";
 import { MemoryStore } from "./store";
 
@@ -215,6 +216,28 @@ test("the insights: a summary from counts, an inventory with models and who is a
   const one = await (await app.request("/?agent=imac")).text();
   expect(one).toContain("imac took part in 2 events in the last 24 hours; received 1, most from ops-dev (1); wrote 1 reply.");
   expect((await app.request("/?agent=")).status).toBe(200); // the picker's "everyone"
+});
+
+test("with marketing's list read, agents show their avatar, role and page; one without a page shows none", async () => {
+  const dir = new DirectoryCache(async () => parseDirectory({
+    schema: "marketing-agents/1",
+    named: ["ops-dev", "imac", "terje"],
+    agents: [{ id: "ops-dev", role: "the dispatcher", page: "https://marketing.urbalurba.com/fleet/ops-dev/", avatar: "https://marketing.urbalurba.com/avatars/ops-dev.svg" }],
+  }, "https://marketing.urbalurba.com/fleet/agents.json"));
+  await dir.refresh();
+  const s = new MemoryStore();
+  await s.collect([ev("1", new Date().toISOString(), { kind: "opened", from: "ops-dev", to: "terje", by: null })], null);
+  const app = createApp(s, undefined, dir);
+  const html = await (await app.request("/")).text();
+  expect(html).toContain('<image href="https://marketing.urbalurba.com/avatars/ops-dev.svg"');
+  expect(html).toContain('<img class="av" src="https://marketing.urbalurba.com/avatars/ops-dev.svg"');
+  expect(html).toContain('<span class="role">the dispatcher</span>');
+  expect(html).toContain('href="https://marketing.urbalurba.com/fleet/ops-dev/"');
+  expect(html).not.toContain("avatars/terje.svg");
+  const one = await (await app.request("/?agent=ops-dev")).text();
+  expect(one).toContain(">About ops-dev</a>");
+  const embed = await (await app.request("/embed/network")).text();
+  expect(embed).toContain("avatars/ops-dev.svg");
 });
 
 test("the live partial is the fragment only, never cached", async () => {

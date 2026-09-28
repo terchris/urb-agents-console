@@ -4,7 +4,7 @@
 // the window, so a reader learns where each one is and nothing jumps when data arrives. A link is
 // a quadratic curve that bends to the right of its direction of travel, so A→B and B→A never lie
 // on top of each other. Widths and radii are square-root scaled, so area, not length, tracks count.
-import { ALLOWLIST, OTHERS } from "./allowlist";
+import { named, OTHERS } from "./allowlist";
 import type { Link, Network } from "./store";
 
 // Neighbours on the circle are agents that often work together: Terje and the coordinators at the
@@ -16,7 +16,7 @@ export const ORDER = [
   "noclickops", "marketing", "urb-agents-console",
 ];
 
-export function layoutOrder(allow: ReadonlySet<string> = ALLOWLIST): string[] {
+export function layoutOrder(allow: ReadonlySet<string> = named()): string[] {
   const known = ORDER.filter((id) => allow.has(id));
   const rest = [...allow].filter((id) => !ORDER.includes(id));
   return [...known, ...rest, OTHERS];
@@ -97,7 +97,10 @@ export type Laid = {
   loops: Link[]; // an agent's tasks to itself: in the table, not drawn
 };
 
-export function layout(net: Network, box: Box = BOX): Laid {
+/** An agent drawn with an avatar is never smaller than this, so the picture can be seen. */
+export const AVATAR_MIN_R = 11;
+
+export function layout(net: Network, box: Box = BOX, avatars: ReadonlySet<string> = new Set()): Laid {
   const ids = layoutOrder();
   const pos = positions(ids, box);
   const events = new Map(net.nodes.map((n) => [n.id, n.events]));
@@ -105,7 +108,8 @@ export function layout(net: Network, box: Box = BOX): Laid {
   const nodes = ids.map((id) => {
     const p = pos.get(id)!;
     const e = events.get(id) ?? 0;
-    return { id, x: round(p.x), y: round(p.y), angle: p.angle, r: nodeRadius(e, maxNode), events: e };
+    const r = nodeRadius(e, maxNode);
+    return { id, x: round(p.x), y: round(p.y), angle: p.angle, r: avatars.has(id) ? Math.max(r, e ? AVATAR_MIN_R : 8) : r, events: e };
   });
   const r = new Map(nodes.map((n) => [n.id, n]));
   const drawable = net.links.filter((l) => l.from !== l.to && r.has(l.from) && r.has(l.to));

@@ -9,6 +9,8 @@
 // A bad run changes nothing: if `urb` fails or prints something that is not JSON, the mark stays
 // where it was and the next tick asks for the same window again. The collector never exits over a
 // bad run; the primary key makes asking twice harmless.
+import { setNamed } from "./allowlist";
+import { DIRECTORY_URL, fetchDirectory, sameList } from "./directory";
 import { parseEvents } from "./event";
 import { PgStore, type WritableStore } from "./store";
 
@@ -26,10 +28,10 @@ export function sinceArg(mark: Date | null): string {
 
 export type Tick = { since: string; fetched: number; inserted: number; dropped: number; mark: string | null };
 
-export async function collectOnce(store: WritableStore, urb: Urb): Promise<Tick> {
+export async function collectOnce(store: WritableStore, urb: Urb, named: ReadonlySet<string>): Promise<Tick> {
   const old = await store.getMark();
   const since = sinceArg(old);
-  const { events, dropped, until } = parseEvents(await urb(since));
+  const { events, dropped, until } = parseEvents(await urb(since), named);
   // The next mark is the moment the read covered up to (`until`), so a quiet hour does not widen
   // the next window. Without one, the newest event seen. The store never moves the mark backwards.
   const newest = until ?? events.reduce<Date | null>((m, e) => {
@@ -53,6 +55,27 @@ export function spawnUrb(bin: string, timeoutMs: number): Urb {
     if (code !== 0) throw new Error(`urb events exited ${code}${proc.signalCode ? ` (${proc.signalCode})` : ""}: ${err.trim().slice(0, 300)}`);
     return out;
   };
+}
+
+/** How often the collector re-reads marketing's list of who may be named. */
+export const NAMING_EVERY_MS = 60 * 60_000;
+
+export type Naming = { list: ReadonlySet<string>; changed: number; source: "marketing" | "saved" } | null;
+
+/**
+ * The list to fold with: marketing's, when it can be read (saved, and folding stored ids that left
+ * it); otherwise the last one saved; otherwise null, and the caller must not collect.
+ */
+export async function refreshNaming(store: WritableStore, load: () => Promise<ReadonlySet<string>>): Promise<Naming> {
+  try {
+    const list = await load();
+    const saved = await store.getNamed();
+    const changed = saved && sameList(saved, list) ? 0 : await store.setNamed(list);
+    return { list, changed, source: "marketing" };
+  } catch {
+    const saved = await store.getNamed();
+    return saved ? { list: saved, changed: 0, source: "saved" } : null;
+  }
 }
 
 export async function prune(store: WritableStore, retentionDays: number, now = new Date()): Promise<number> {
@@ -81,13 +104,28 @@ async function main() {
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
 
-  log({ level: "info", msg: "collector started", everySeconds: every / 1000, retentionDays });
-  let lastPrune = 0;
+  log({ level: "info", msg: "collector started", everySeconds: every / 1000, retentionDays, naming: DIRECTORY_URL });
+  let lastPrune = 0, lastNaming = 0;
+  let named: ReadonlySet<string> | null = null;
+  const load = async () => (await fetchDirectory()).named;
   while (!stopping) {
-    try {
-      log({ level: "info", msg: "collected", ...(await collectOnce(store, urb)) });
-    } catch (e) {
-      log({ level: "error", msg: "collect failed; mark kept", error: String(e) });
+    if (!named || Date.now() - lastNaming > NAMING_EVERY_MS) {
+      const n = await refreshNaming(store, load);
+      if (n) {
+        named = n.list;
+        setNamed(n.list);
+        lastNaming = Date.now();
+        log({ level: n.source === "marketing" ? "info" : "warn", msg: "naming list", source: n.source, ids: n.list.size, refolded: n.changed });
+      } else {
+        log({ level: "error", msg: "no naming list: marketing's agents.json unreadable and none saved; not collecting", url: DIRECTORY_URL });
+      }
+    }
+    if (named) {
+      try {
+        log({ level: "info", msg: "collected", ...(await collectOnce(store, urb, named)) });
+      } catch (e) {
+        log({ level: "error", msg: "collect failed; mark kept", error: String(e) });
+      }
     }
     if (Date.now() - lastPrune > 86_400_000) {
       try {

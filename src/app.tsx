@@ -6,8 +6,9 @@
 // The web app reads only the store; it never touches the bus. With no DATABASE_URL (deployed
 // before its database exists) it serves an empty feed and says why, rather than failing.
 import { Hono } from "hono";
-import { ALLOWLIST, OTHERS } from "./allowlist";
+import { named, OTHERS } from "./allowlist";
 import { createApi, cursorOf, parseCursor, WINDOWS, type Window } from "./api";
+import { DirectoryCache } from "./directory";
 import { activeNow } from "./insight-view";
 import { layout } from "./network";
 import { bucketsFor } from "./time";
@@ -16,7 +17,11 @@ import { MemoryStore, PgStore, type Cursor, type Store } from "./store";
 
 export const NO_DATABASE = "The collector is not running yet — no events are collected. See terchris/urb-agents-console.";
 
-export function createApp(store: Store, note?: string) {
+/** The web app's copy of marketing's agent list (index.ts refreshes it). */
+export const directory = new DirectoryCache();
+
+export function createApp(store: Store, note?: string, dir: DirectoryCache = directory) {
+  const avatars = () => new Set([...dir.profiles().values()].filter((p) => p.avatar).map((p) => p.id));
   const app = new Hono();
 
   app.get("/healthz", (c) => c.text("ok"));
@@ -31,7 +36,7 @@ export function createApp(store: Store, note?: string) {
     const agent = q("agent") || undefined; // the picker's "everyone" sends an empty value
     const before = q("before");
     const cursor = before ? parseCursor(before) : undefined;
-    const ok = w in WINDOWS && (agent === undefined || agent === OTHERS || ALLOWLIST.has(agent)) && cursor !== null;
+    const ok = w in WINDOWS && (agent === undefined || agent === OTHERS || named().has(agent)) && cursor !== null;
     return ok ? { window: w as Window, agent, before: cursor ?? undefined } : null;
   };
 
@@ -48,7 +53,7 @@ export function createApp(store: Store, note?: string) {
     ]);
     const last = events[events.length - 1];
     return {
-      window: v.window, agent: v.agent, events, agents, total, network: layout(net), now,
+      window: v.window, agent: v.agent, events, agents, total, network: layout(net, undefined, avatars()), now, profiles: dir.profiles(),
       rhythm: { ...act, window: v.window, starts, size },
       next: events.length === PAGE_SIZE && last ? cursorOf(last) : null, paged: !!v.before,
     };
@@ -74,7 +79,7 @@ export function createApp(store: Store, note?: string) {
     const since = new Date(Date.now() - WINDOWS[v.window]);
     const [net, total, agents] = await Promise.all([store.network(since), store.count(since), store.agents(since)]);
     c.header("Cache-Control", "public, max-age=60");
-    return c.html("<!doctype html>" + (<Embed laid={layout(net)} window={v.window} total={total} active={activeNow(agents, Date.now())} />));
+    return c.html("<!doctype html>" + (<Embed laid={layout(net, undefined, avatars())} window={v.window} total={total} active={activeNow(agents, Date.now())} profiles={dir.profiles()} />));
   });
 
   return app;

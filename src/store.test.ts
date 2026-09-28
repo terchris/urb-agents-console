@@ -17,7 +17,7 @@ if (url) {
   const sql = new SQL(url);
   afterAll(() => sql.close());
   stores.push(["postgres", async () => {
-    await sql.unsafe("DROP TABLE IF EXISTS events, collector_mark");
+    await sql.unsafe("DROP TABLE IF EXISTS events, collector_mark, naming");
     await sql.unsafe(await Bun.file(new URL("../config/init-database.sql", import.meta.url)).text());
     return new PgStore(sql);
   }]);
@@ -125,6 +125,21 @@ for (const [name, make] of stores) {
         ev("3", "2026-09-28T07:02:00.000Z", { from: "atlas", to: "tor-agent", by: null }),
       ], null);
       expect((await s.readEvents({ limit: 10, agent: "imac" })).map((e) => e.id)).toEqual(["2", "1"]);
+    });
+
+    test("setNamed saves the list and folds stored ids that left it, on every end", async () => {
+      expect(await s.getNamed()).toBeNull();
+      await s.collect([
+        ev("1", "2026-09-28T07:00:00.000Z", { from: "ops-dev", to: "imac", by: "imac" }),
+        ev("2", "2026-09-28T07:01:00.000Z", { from: "atlas", to: "ops-dev", by: null }),
+        ev("3", "2026-09-28T07:02:00.000Z", { from: "others", to: null, by: null }),
+      ], null);
+      expect(await s.setNamed(new Set(["ops-dev", "atlas"]))).toBe(1); // imac left the list
+      expect([...(await s.getNamed())!].sort()).toEqual(["atlas", "ops-dev"]);
+      const e = await s.readEvents({ limit: 10 });
+      expect(e.find((x) => x.id === "1")).toMatchObject({ from: "ops-dev", to: "others", by: "others" });
+      expect(e.find((x) => x.id === "2")).toMatchObject({ from: "atlas", to: "ops-dev" });
+      expect(await s.setNamed(new Set(["ops-dev", "atlas"]))).toBe(0); // nothing left to fold
     });
 
     test("prune deletes only what is older than the cut", async () => {

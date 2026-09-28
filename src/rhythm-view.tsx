@@ -6,7 +6,7 @@
 // An agent with no events in the window has no row; it is named in the line beneath instead, so
 // "who idles" is visible too.
 import type { FC } from "hono/jsx";
-import { ALLOWLIST, OTHERS } from "./allowlist";
+import { named, OTHERS } from "./allowlist";
 import type { Window } from "./api";
 import type { Href } from "./network-view";
 import type { Activity } from "./store";
@@ -46,7 +46,7 @@ export const RhythmView: FC<{ r: Rhythm; agent?: string; href: Href }> = ({ r, a
   const maxCell = Math.max(0, ...r.agents.flatMap((a) => a.counts));
   const maxTotal = Math.max(0, ...r.total);
   const peak = r.total.indexOf(maxTotal);
-  const quiet = [...ALLOWLIST, OTHERS].filter((id) => !r.agents.some((a) => a.id === id));
+  const quiet = [...named(), OTHERS].filter((id) => !r.agents.some((a) => a.id === id));
   return (
     <section aria-labelledby="rh" class="rhythm">
       <h2 id="rh">When the fleet works <small>per {unit}, last {r.window === "24h" ? "24 hours" : r.window === "7d" ? "7 days" : "30 days"}</small></h2>

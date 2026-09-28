@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
-import { OTHERS } from "./allowlist";
-import { collectOnce, FIRST_WINDOW, OVERLAP_MS, prune, sinceArg, spawnUrb, type Urb } from "./collector";
-import { MemoryStore } from "./store";
+import { OTHERS, SNAPSHOT } from "./allowlist";
+import { collectOnce as collectWith, FIRST_WINDOW, OVERLAP_MS, prune, refreshNaming, sinceArg, spawnUrb, type Urb } from "./collector";
+import { MemoryStore, type WritableStore } from "./store";
+
+const collectOnce = (s: WritableStore, urb: Urb) => collectWith(s, urb, SNAPSHOT);
 
 const row = (id: string, at: string, over: Record<string, unknown> = {}) => ({
   id, at, kind: "replied", from: "ops-dev", to: "marketing", by: "marketing", state: "done",
@@ -74,6 +76,27 @@ test("prune keeps the retention period", async () => {
   );
   expect(await prune(s, 90, new Date("2026-09-28T00:00:00Z"))).toBe(1);
   expect(s.events.map((e) => e.id)).toEqual(["new"]);
+});
+
+test("naming: marketing's list is saved; if it cannot be read, the saved one is used; with neither, none", async () => {
+  const s = new MemoryStore();
+  const down = async (): Promise<ReadonlySet<string>> => { throw new Error("marketing unreachable"); };
+  expect(await refreshNaming(s, down)).toBeNull(); // the caller must not collect
+  const up = await refreshNaming(s, async () => new Set(["ops-dev", "imac"]));
+  expect(up).toMatchObject({ source: "marketing", changed: 0 });
+  expect([...(await s.getNamed())!].sort()).toEqual(["imac", "ops-dev"]);
+  const fallback = await refreshNaming(s, down);
+  expect(fallback?.source).toBe("saved");
+  expect([...fallback!.list].sort()).toEqual(["imac", "ops-dev"]);
+});
+
+test("naming: an id that leaves marketing's list is folded out of what is already stored", async () => {
+  const s = new MemoryStore();
+  await refreshNaming(s, async () => new Set(["ops-dev", "imac"]));
+  await collectOnce(s, urbOf([row("a", "2026-09-28T07:00:00Z", { from: "ops-dev", to: "imac", by: "imac" })]));
+  const n = await refreshNaming(s, async () => new Set(["ops-dev"]));
+  expect(n?.changed).toBe(1);
+  expect(s.events[0]).toMatchObject({ from: "ops-dev", to: OTHERS, by: OTHERS });
 });
 
 // The real process boundary, with the fake urb standing in.

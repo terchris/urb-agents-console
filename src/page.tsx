@@ -18,6 +18,7 @@ import type { Laid } from "./network";
 import { Focus, NetworkSvg, NetworkTable, type Href } from "./network-view";
 import { activeNow, AgentPicker, Histogram, Inventory, Summary, summary } from "./insight-view";
 import { RHYTHM_CSS, RhythmView, type Rhythm } from "./rhythm-view";
+import type { Profile } from "./directory";
 import type { AgentSummary } from "./store";
 import { ZONE } from "./time";
 
@@ -125,6 +126,8 @@ export function viewHref(v: View, p: { agent?: string | null; window?: Window; b
 
 export type LiveProps = View & {
   events: Event[]; agents: AgentSummary[]; total: number; network: Laid; rhythm: Rhythm;
+  /** Marketing's profiles (role, page, avatar) for the agents with a page; empty until read. */
+  profiles: ReadonlyMap<string, Profile>;
   now: number; next: string | null; paged: boolean;
 };
 
@@ -146,13 +149,13 @@ export const Live: FC<LiveProps> = (p) => {
         <section aria-labelledby="nw" class="network">
           <h2 id="nw">Who sends work to whom <small>last {WINDOW_LABEL[p.window]}</small></h2>
           <p class="how">An arrow runs from the agent that opened a task to the agent it was for, and its width is how much has happened on their tasks. Pick an agent to follow its part.</p>
-          {p.agent ? <Focus laid={p.network} agent={p.agent} href={href} /> : null}
-          <NetworkSvg laid={p.network} agent={p.agent} href={href} active={activeNow(p.agents, p.now)} />
+          {p.agent ? <Focus laid={p.network} agent={p.agent} href={href} profile={p.profiles.get(p.agent)} /> : null}
+          <NetworkSvg laid={p.network} agent={p.agent} href={href} active={activeNow(p.agents, p.now)} profiles={p.profiles} />
           <NetworkTable laid={p.network} agent={p.agent} />
         </section>
       )}
       {p.paged ? null : <RhythmView r={p.rhythm} agent={p.agent} href={href} />}
-      {p.paged ? null : <Inventory agents={p.agents} network={p.network} rhythm={p.rhythm} now={p.now} windowLabel={WINDOW_LABEL[p.window]} agent={p.agent} href={href} />}
+      {p.paged ? null : <Inventory agents={p.agents} network={p.network} rhythm={p.rhythm} now={p.now} windowLabel={WINDOW_LABEL[p.window]} agent={p.agent} href={href} profiles={p.profiles} />}
       <Timeline events={p.events} now={p.now} next={p.next} href={href} agent={p.agent} rhythm={p.rhythm} paged={p.paged} />
     </div>
   );
@@ -173,7 +176,7 @@ const Filters: FC<View> = (v) => (
 
 // The network on a bare page, for another site to put in an iframe (the marketing site first).
 // Its links open the full page at the top level. It refreshes itself every minute.
-export const Embed: FC<{ laid: Laid; window: Window; total: number; active?: Set<string> }> = (p) => (
+export const Embed: FC<{ laid: Laid; window: Window; total: number; active?: Set<string>; profiles?: ReadonlyMap<string, Profile> }> = (p) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -186,7 +189,7 @@ export const Embed: FC<{ laid: Laid; window: Window; total: number; active?: Set
         <a href={viewHref({ window: p.window }, {})} target="_top">Who sends work to whom</a> in the Urbalurba agent fleet ·{" "}
         {p.total} {p.total === 1 ? "event" : "events"} in the last {WINDOW_LABEL[p.window]}
       </p>
-      <NetworkSvg laid={p.laid} href={(q) => viewHref({ window: p.window }, q)} target="_top" active={p.active} />
+      <NetworkSvg laid={p.laid} href={(q) => viewHref({ window: p.window }, q)} target="_top" active={p.active} profiles={p.profiles} />
       <div id="tip" role="tooltip" hidden />
       <script dangerouslySetInnerHTML={{ __html: EMBED_SCRIPT }} />
     </body>
@@ -426,6 +429,18 @@ a{color:var(--accent)}
 .net .link:hover .head,.net .link.hot .head{fill:var(--accent);opacity:1}
 .net.has-sel .link:not(.hot){opacity:.18}
 .net .node .dot{fill:var(--node);stroke:var(--bg);stroke-width:2}
+.net .node .dot.pic{fill:var(--card)}
+.net .node .ring{fill:none;stroke:var(--bg);stroke-width:2}
+.net .node.sel .ring{stroke:var(--accent);stroke-width:3.5}
+.net .node.active .ring{stroke:var(--replied);stroke-width:3;animation:beat-ring 2.4s infinite}
+.net .node.idle image{opacity:.45;filter:grayscale(1)}
+.net a:focus-visible .ring{stroke:var(--accent);stroke-width:3.5}
+.face{width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:.4rem}
+table.inv .who-cell{display:flex;align-items:center;gap:.45rem}
+table.inv .av{width:24px;height:24px;border-radius:50%;flex-shrink:0}
+table.inv .av.none{display:inline-block;background:var(--line)}
+table.inv .role{display:block;font-weight:400;font-size:.75rem;color:var(--muted)}
+table.inv .profile{font-weight:400;font-size:.75rem;margin-left:.25rem;text-decoration:none}
 .net .node .hit{fill:transparent}
 .net .node text{fill:var(--fg);font-size:13px;font-weight:600}
 .net .node.idle .dot{fill:var(--line)}
@@ -482,7 +497,7 @@ table.inv .c-models .more{color:var(--accent)}
 .spark circle{fill:var(--accent)}
 .net .node.active .dot{stroke:var(--replied);stroke-width:3;animation:beat-ring 2.4s infinite}
 @keyframes beat-ring{0%,100%{stroke-opacity:1}50%{stroke-opacity:.25}}
-@media (prefers-reduced-motion:reduce){.now,.net .node.active .dot{animation:none}}
+@media (prefers-reduced-motion:reduce){.now,.net .node.active .dot,.net .node.active .ring{animation:none}}
 @media (max-width:40rem){table.inv .c-models,table.inv .c-recv{display:none}}
 @media (max-width:30rem){table.inv .c-spark{display:none}table.inv{font-size:.8rem}table.inv th,table.inv td{padding-right:.35rem}table.inv tbody th{white-space:normal;overflow-wrap:anywhere}}
 .inv-wrap{overflow-x:auto;max-width:100%}

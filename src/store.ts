@@ -2,6 +2,7 @@
 // client, no driver dependency) for the cluster, and memory for tests and for a web app that has
 // no database yet. The web app only ever calls the read half; only the collector writes.
 import { SQL } from "bun";
+import { OTHERS } from "./allowlist";
 import type { Event, Kind } from "./event";
 
 export type Cursor = { at: string; id: string | null };
@@ -52,6 +53,11 @@ export interface WritableStore extends Store {
   getMark(): Promise<Date | null>;
   /** Delete events older than `before`. Returns the number deleted. */
   prune(before: Date): Promise<number>;
+  /** The last naming list saved, or null if there has never been one. */
+  getNamed(): Promise<ReadonlySet<string> | null>;
+  /** Save the naming list, and fold every stored id that is no longer on it into `others`,
+   *  atomically. Returns the number of events changed. */
+  setNamed(named: ReadonlySet<string>): Promise<number>;
 }
 
 const MARK = "events";
@@ -188,6 +194,33 @@ export class PgStore implements WritableStore {
     const rows = await this.sql`DELETE FROM events WHERE at < ${before} RETURNING id`;
     return rows.length;
   }
+
+  async getNamed(): Promise<ReadonlySet<string> | null> {
+    const [row] = await this.sql`SELECT ids FROM naming WHERE name = 'named'`;
+    return row ? new Set(row.ids as string[]) : null;
+  }
+
+  async setNamed(named: ReadonlySet<string>): Promise<number> {
+    return this.sql.begin(async (tx) => {
+      // sql.array(): a plain JS array would be sent as "a,b", which Postgres rejects as an array
+      const list = tx.array([...named], "text");
+      const keep = tx.array([...named, OTHERS], "text");
+      await tx`
+        INSERT INTO naming (name, ids, fetched) VALUES ('named', ${list}, now())
+        ON CONFLICT (name) DO UPDATE SET ids = excluded.ids, fetched = now()`;
+      const changed = await tx`
+        UPDATE events SET
+          from_id = CASE WHEN from_id = ANY(${keep}) THEN from_id ELSE ${OTHERS} END,
+          to_id   = CASE WHEN to_id IS NULL OR to_id = ANY(${keep}) THEN to_id ELSE ${OTHERS} END,
+          by_id   = CASE WHEN by_id IS NULL OR by_id = ANY(${keep}) THEN by_id ELSE ${OTHERS} END
+        WHERE NOT (from_id = ANY(${keep}))
+           OR (to_id IS NOT NULL AND NOT (to_id = ANY(${keep})))
+           OR (by_id IS NOT NULL AND NOT (by_id = ANY(${keep})))
+        RETURNING id`;
+      return changed.length;
+    });
+  }
+
 }
 
 function topModels(rows: { writer: string; model: string; n: number }[]): Map<string, AgentSummary["models"]> {
@@ -329,6 +362,24 @@ export class MemoryStore implements WritableStore {
 
   async getMark(): Promise<Date | null> {
     return this.mark;
+  }
+
+  named: ReadonlySet<string> | null = null;
+
+  async getNamed(): Promise<ReadonlySet<string> | null> {
+    return this.named;
+  }
+
+  async setNamed(named: ReadonlySet<string>): Promise<number> {
+    this.named = new Set(named);
+    const keep = (id: string | null) => (id === null || id === OTHERS || named.has(id) ? id : OTHERS);
+    let n = 0;
+    this.events = this.events.map((e) => {
+      const f = { ...e, from: keep(e.from)!, to: keep(e.to), by: keep(e.by) };
+      if (f.from !== e.from || f.to !== e.to || f.by !== e.by) n++;
+      return f;
+    });
+    return n;
   }
 
   async prune(before: Date): Promise<number> {

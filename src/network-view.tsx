@@ -7,6 +7,7 @@
 import type { FC } from "hono/jsx";
 import { OTHERS } from "./allowlist";
 import type { Laid } from "./network";
+import type { Profile } from "./directory";
 import type { Link } from "./store";
 
 export type Href = (p: { agent?: string | null; before?: string }) => string;
@@ -20,7 +21,8 @@ function anchor(angle: number): "start" | "middle" | "end" {
   return Math.abs(c) < 0.2 ? "middle" : c > 0 ? "start" : "end";
 }
 
-export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: string; active?: Set<string> }> = ({ laid, agent, href, target, active }) => {
+export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: string; active?: Set<string>; profiles?: ReadonlyMap<string, Profile> }> =
+  ({ laid, agent, href, target, active, profiles }) => {
   const { box, nodes, links } = laid;
   const touching = (l: Link) => agent !== undefined && (l.from === agent || l.to === agent);
   const neighbours = new Set(links.filter(touching).flatMap((l) => [l.from, l.to]));
@@ -55,11 +57,20 @@ export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: s
             active?.has(n.id) ? "active" : ""].filter(Boolean).join(" ");
           const lx = n.x + Math.cos(n.angle) * (n.r + 8);
           const ly = n.y + Math.sin(n.angle) * (n.r + 8);
-          const tip = `${n.id}: ${n.events === 0 ? "no events" : plural(n.events, "event")} in this window${active?.has(n.id) ? " · active now" : ""}`;
+          const p = profiles?.get(n.id);
+          const tip = `${n.id}${p?.role ? ` (${p.role})` : ""}: ${n.events === 0 ? "no events" : plural(n.events, "event")} in this window${active?.has(n.id) ? " · active now" : ""}`;
           return (
             <a href={href({ agent: n.id === agent ? null : n.id })} target={target} class={cls} data-tip={tip} aria-label={tip}>
               <circle class="hit" cx={n.x} cy={n.y} r={Math.max(n.r + 6, 14)} />
-              <circle class="dot" cx={n.x} cy={n.y} r={n.r} />
+              {p?.avatar ? (
+                <>
+                  <clipPath id={`av-${n.id}`}><circle cx={n.x} cy={n.y} r={n.r} /></clipPath>
+                  <circle class="dot pic" cx={n.x} cy={n.y} r={n.r} />
+                  <image href={p.avatar} x={n.x - n.r} y={n.y - n.r} width={n.r * 2} height={n.r * 2}
+                    clip-path={`url(#av-${n.id})`} preserveAspectRatio="xMidYMid slice" />
+                  <circle class="ring" cx={n.x} cy={n.y} r={n.r} />
+                </>
+              ) : <circle class="dot" cx={n.x} cy={n.y} r={n.r} />}
               <text x={Math.round(lx * 10) / 10} y={Math.round(ly * 10) / 10} text-anchor={anchor(n.angle)} dominant-baseline="middle">
                 {n.id}
               </text>
@@ -94,7 +105,7 @@ export const NetworkTable: FC<{ laid: Laid; agent?: string }> = ({ laid, agent }
 };
 
 /** In words, for the selected agent: whom it sends most to, and who sends most to it. */
-export const Focus: FC<{ laid: Laid; agent: string; href: Href }> = ({ laid, agent, href }) => {
+export const Focus: FC<{ laid: Laid; agent: string; href: Href; profile?: Profile }> = ({ laid, agent, href, profile }) => {
   const all = [...laid.links, ...laid.loops];
   const out = all.filter((l) => l.from === agent && l.to !== agent).sort((a, b) => b.events - a.events).slice(0, 3);
   const inn = all.filter((l) => l.to === agent && l.from !== agent).sort((a, b) => b.events - a.events).slice(0, 3);
@@ -103,8 +114,9 @@ export const Focus: FC<{ laid: Laid; agent: string; href: Href }> = ({ laid, age
       : ls.map((l, i) => <>{i > 0 ? ", " : null}<a href={href({ agent: other(l) })}>{other(l)}</a> ({i === 0 ? plural(l.events, "event") : l.events})</>);
   return (
     <p class="focus">
-      <b>{agent}</b> sends most to {list(out, (l) => l.to)}, and gets most from {list(inn, (l) => l.from)}.{" "}
-      <a href={href({ agent: null })}>Show everyone</a>
+      {profile?.avatar ? <img class="face" src={profile.avatar} alt="" width="28" height="28" /> : null}
+      <b>{agent}</b>{profile?.role ? <span class="muted">, {profile.role},</span> : null} sends most to {list(out, (l) => l.to)}, and gets most from {list(inn, (l) => l.from)}.{" "}
+      {profile?.page ? <><a href={profile.page}>About {agent}</a> · </> : null}<a href={href({ agent: null })}>Show everyone</a>
     </p>
   );
 };

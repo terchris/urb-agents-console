@@ -43,6 +43,9 @@ repository. Newest entries go at the bottom of each section, and each one gives 
   gives "Sep" on Bun 1.4.0 and "Sept" on 1.4.2. Local, CI (`setup-bun` latest) and the image
   (`oven/bun:1`) can each run a different Bun, so a test that pins a formatted date passes locally
   and fails in CI. Test formatted dates loosely, or pin one Bun version everywhere.
+- **2026-09-29: `Bun.sql` needs `sql.array()` for a Postgres array.** A plain JS array in a
+  tagged template is sent as `"a,b"`, and Postgres answers *malformed array literal*. Use
+  `sql.array(values, "text")`, which works with `= ANY(...)` and in an `INSERT`.
 
 ## Hono
 
