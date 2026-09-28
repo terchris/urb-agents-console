@@ -6,6 +6,8 @@
 #   - the Secret urb-agents-console-db (DATABASE_URL), from `uis configure postgresql`;
 #   - the read-only bus token as a Secret (Terje). The name and key below are placeholders until
 #     urb-agents-maintainer says which variable `urb` reads in a container (#1651, question 5);
+#   - URB_EVENTS_KEY, in the same Secret: `urb events --json` hashes task ids with it. It must stay
+#     the same forever; a new key gives every event a new id, so the overlap would store them twice;
 #   - how `urb` itself gets into the pod (PLAN-001 2.5, Terje). Until then URB_BIN points at a
 #     binary that does not exist, and each tick logs "collect failed; mark kept".
 #
@@ -47,6 +49,9 @@ spec:
             - name: GH_TOKEN # placeholder: see the header
               valueFrom:
                 secretKeyRef: { name: urb-agents-console-bus, key: token }
+            - name: URB_EVENTS_KEY # at least 16 characters; never rotated
+              valueFrom:
+                secretKeyRef: { name: urb-agents-console-bus, key: events-key }
           resources:
             requests: { cpu: "10m", memory: "48Mi" }
             limits: { cpu: "200m", memory: "128Mi" }

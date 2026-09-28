@@ -23,12 +23,14 @@ export function createApp(store: Store, note?: string) {
   // feed as api-fleet, so the page needs no CORS.
   const live = async (before?: Cursor): Promise<LiveProps> => {
     const now = Date.now();
-    const [events, agents] = await Promise.all([
+    const day = new Date(now - 86_400_000);
+    const [events, agents, total] = await Promise.all([
       store.readEvents({ limit: PAGE_SIZE, before }),
-      before ? Promise.resolve([]) : store.agents(new Date(now - 86_400_000)),
+      before ? Promise.resolve([]) : store.agents(day),
+      before ? Promise.resolve(0) : store.count(day),
     ]);
     const last = events[events.length - 1];
-    return { events, agents, now, next: events.length === PAGE_SIZE && last ? cursorOf(last) : null, paged: !!before };
+    return { events, agents, total, now, next: events.length === PAGE_SIZE && last ? cursorOf(last) : null, paged: !!before };
   };
 
   app.get("/", async (c) => {

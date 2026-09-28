@@ -4,7 +4,7 @@ import { EVENT_FIELDS, type Event } from "./event";
 import { MemoryStore } from "./store";
 
 const ev = (id: string, at: string, over: Partial<Event> = {}): Event => ({
-  id, at, kind: "replied", from: "ops-dev", to: "marketing", state: "done",
+  id, at, kind: "replied", from: "ops-dev", to: "marketing", by: "marketing", state: "done",
   provider: "claude-code:cli", model: "claude-opus-5-5", ...over,
 });
 
@@ -44,7 +44,7 @@ test("events come newest first, cached for 30 s, and page without losing ties", 
 });
 
 test("no event served carries a key outside the contract", async () => {
-  const app = await withEvents([ev("a", "2026-09-28T07:00:00.000Z", { to: null, provider: null, model: null })]);
+  const app = await withEvents([ev("a", "2026-09-28T07:00:00.000Z", { to: null, by: null, provider: null, model: null })]);
   const body = await json(await app.request("/v1/events"));
   expect(Object.keys(body).sort()).toEqual(["events", "next", "schema"]);
   for (const e of body.events) expect(Object.keys(e).sort()).toEqual([...EVENT_FIELDS].sort());
@@ -75,7 +75,8 @@ test("agents counts the last 24 hours", async () => {
   const b = await json(await app.request("/v1/agents"));
   expect(b.schema).toBe("urb-events/1");
   expect(b.agents.map((a: { id: string }) => a.id).sort()).toEqual(["marketing", "ops-dev"]);
-  expect(b.agents.find((a: { id: string }) => a.id === "marketing")).toMatchObject({ received: 1, opened: 0 });
+  expect(b.agents.find((a: { id: string }) => a.id === "marketing")).toEqual(expect.objectContaining({ received: 1, opened: 0, replied: 0 }));
+  expect(Object.keys(b.agents[0]).sort()).toEqual(["id", "lastSeen", "opened", "received", "replied"]);
 });
 
 test("the API describes itself as OpenAPI 3.1, and the Event schema is exactly the contract", async () => {
@@ -95,7 +96,9 @@ test("the page renders the events and the agents, with others marked as such", a
   const now = Date.now();
   const app = await withEvents([
     ev("1", new Date(now - 60_000).toISOString(), { kind: "opened", from: "ops-dev", to: "others" }),
-    ev("2", new Date(now - 30_000).toISOString(), { kind: "moved", from: "imac", to: "ops-dev", state: "working", provider: null, model: null }),
+    ev("2", new Date(now - 30_000).toISOString(), { kind: "moved", from: "imac", to: "ops-dev", by: null, state: "working", provider: null, model: null }),
+    ev("3", new Date(now - 20_000).toISOString(), { kind: "replied", from: "imac", to: "ops-dev", by: "ops-dev" }),
+    ev("4", new Date(now - 10_000).toISOString(), { kind: "closed", from: "imac", to: "ops-dev", by: null, state: "completed" }),
   ]);
   const r = await app.request("/");
   expect(r.status).toBe(200);
@@ -103,7 +106,10 @@ test("the page renders the events and the agents, with others marked as such", a
   expect(html.startsWith("<!doctype html>")).toBe(true);
   expect(html).toContain("The fleet, live");
   expect(html).toContain('<span class="who">ops-dev</span> opened a task for <span class="who others"');
-  expect(html).toContain('moved a task to <b class="state">working</b>');
+  // A move and a close say what happened to the task, never who did it: the contract doesn't say.
+  expect(html).toContain('A task from <span class="who">imac</span> to <span class="who">ops-dev</span> moved to <b class="state">working</b>');
+  expect(html).toContain('was closed as <b class="state">completed</b>');
+  expect(html).toContain('<span class="who">ops-dev</span> replied to <span class="who">imac</span>');
   expect(html).toContain('<li class="agent others">');
   expect(html).not.toContain("Older events"); // one page only
 });

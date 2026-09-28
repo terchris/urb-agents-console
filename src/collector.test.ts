@@ -4,10 +4,11 @@ import { collectOnce, FIRST_WINDOW, OVERLAP_MS, prune, sinceArg, spawnUrb, type 
 import { MemoryStore } from "./store";
 
 const row = (id: string, at: string, over: Record<string, unknown> = {}) => ({
-  id, at, kind: "replied", from: "ops-dev", to: "marketing", state: "done",
+  id, at, kind: "replied", from: "ops-dev", to: "marketing", by: "marketing", state: "done",
   provider: "claude-code:cli", model: "claude-opus-5-5", ...over,
 });
-const urbOf = (rows: unknown[]): Urb => async () => JSON.stringify(rows);
+const urbOf = (rows: unknown[], until?: string): Urb => async (since) =>
+  JSON.stringify({ schema: "urb-events/1", since, ...(until ? { until } : {}), events: rows }, null, 2);
 
 test("the first run asks for 24 hours; later runs overlap the mark by 10 minutes", () => {
   expect(sinceArg(null)).toBe(FIRST_WINDOW);
@@ -37,10 +38,24 @@ test("a failing urb or output that is not JSON leaves the mark where it was", as
   expect(s.events).toHaveLength(1);
 });
 
-test("an empty window keeps the mark", async () => {
+test("an empty window without until keeps the mark", async () => {
   const s = new MemoryStore();
   await collectOnce(s, urbOf([row("a", "2026-09-28T07:00:00Z")]));
   expect((await collectOnce(s, urbOf([]))).mark).toBe("2026-09-28T07:00:00.000Z");
+});
+
+test("until moves the mark even through a quiet window, so the next window stays small", async () => {
+  const s = new MemoryStore();
+  await collectOnce(s, urbOf([row("a", "2026-09-28T07:00:00Z")], "2026-09-28T07:30:00Z"));
+  const t = await collectOnce(s, urbOf([], "2026-09-28T08:30:00Z"));
+  expect(t).toMatchObject({ since: "2026-09-28T07:20:00.000Z", mark: "2026-09-28T08:30:00.000Z" });
+});
+
+test("a changed schema is refused and the mark kept", async () => {
+  const s = new MemoryStore();
+  await collectOnce(s, urbOf([row("a", "2026-09-28T07:00:00Z")]));
+  await expect(collectOnce(s, async () => JSON.stringify({ schema: "urb-events/2", events: [] }))).rejects.toThrow(/schema/);
+  expect((await s.getMark())?.toISOString()).toBe("2026-09-28T07:00:00.000Z");
 });
 
 test("a late event older than the mark is still stored, and the mark does not go back", async () => {
@@ -54,8 +69,8 @@ test("prune keeps the retention period", async () => {
   const s = new MemoryStore();
   await s.collect([], null);
   s.events.push(
-    { id: "old", at: "2026-06-01T00:00:00.000Z", kind: "opened", from: "ops", to: "imac", state: null, provider: null, model: null },
-    { id: "new", at: "2026-09-01T00:00:00.000Z", kind: "opened", from: "ops", to: "imac", state: null, provider: null, model: null },
+    { id: "old", at: "2026-06-01T00:00:00.000Z", kind: "opened", from: "ops", to: "imac", by: null, state: null, provider: null, model: null },
+    { id: "new", at: "2026-09-01T00:00:00.000Z", kind: "opened", from: "ops", to: "imac", by: null, state: null, provider: null, model: null },
   );
   expect(await prune(s, 90, new Date("2026-09-28T00:00:00Z"))).toBe(1);
   expect(s.events.map((e) => e.id)).toEqual(["new"]);
@@ -66,7 +81,7 @@ const fake = new URL("../tools/fake-urb.ts", import.meta.url).pathname;
 
 test("spawnUrb runs the binary and returns its JSON", async () => {
   const out = await spawnUrb(fake, 10_000)("24h");
-  expect(JSON.parse(out)).toHaveLength(3);
+  expect(JSON.parse(out).events).toHaveLength(3);
 });
 
 test("spawnUrb throws with urb's own message when it exits non-zero", async () => {

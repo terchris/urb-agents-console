@@ -3,6 +3,9 @@
 // keeps what src/event.ts lets in, and inserts the rows and moves the mark in one transaction.
 // Once a day it deletes what is older than the retention period.
 //
+// `urb events --json` needs URB_EVENTS_KEY (the task ids are keyed hashes). It reaches `urb`
+// through the environment; the collector never reads it.
+//
 // A bad run changes nothing: if `urb` fails or prints something that is not JSON, the mark stays
 // where it was and the next tick asks for the same window again. The collector never exits over a
 // bad run; the primary key makes asking twice harmless.
@@ -26,9 +29,10 @@ export type Tick = { since: string; fetched: number; inserted: number; dropped: 
 export async function collectOnce(store: WritableStore, urb: Urb): Promise<Tick> {
   const old = await store.getMark();
   const since = sinceArg(old);
-  const { events, dropped } = parseEvents(await urb(since));
-  // The newest event seen; the store keeps the later of this and the old mark.
-  const newest = events.reduce<Date | null>((m, e) => {
+  const { events, dropped, until } = parseEvents(await urb(since));
+  // The next mark is the moment the read covered up to (`until`), so a quiet hour does not widen
+  // the next window. Without one, the newest event seen. The store never moves the mark backwards.
+  const newest = until ?? events.reduce<Date | null>((m, e) => {
     const at = new Date(e.at);
     return !m || at > m ? at : m;
   }, null);

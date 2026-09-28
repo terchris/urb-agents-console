@@ -5,8 +5,9 @@
 //   FAKE_URB_FILE=<path>   print this file instead (a fixture)
 //   FAKE_URB_FAIL=1        exit 1, as `urb` would when rate-limited
 //
-// Otherwise it prints a few events from the last minute, in the contract's shape, including ids
-// that are not on the allowlist, so the fold can be seen working.
+// Otherwise it prints a few events from the last minute in the shape urb 0.5.48 prints
+// ({ schema, since, until, events }), including ids that are not on the allowlist, so the fold can
+// be seen working.
 const args = process.argv.slice(2);
 if (args[0] !== "events" || !args.includes("--since") || !args.includes("--json")) {
   console.error("fake-urb: only `events --since <x> --json` is supported");
@@ -22,24 +23,25 @@ if (process.env.FAKE_URB_FILE) {
 }
 
 const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
-const agents = ["ops-dev", "marketing", "atlas", "imac", "tor-agent", "urb-agents-console", "rc-eval", "terje"];
+const agents = ["ops-dev", "marketing", "atlas", "imac", "tor-agent", "urb-agents-console", "terje", "rc-eval", "urbalurba"];
 const kinds = ["opened", "moved", "replied", "closed"] as const;
 const states = { opened: "submitted", moved: "working", replied: null, closed: "completed" } as const;
 
 const events = Array.from({ length: 3 }, () => {
   const kind = pick(kinds);
-  const labelMove = kind === "moved"; // a label move carries no speaker stamp
+  const from = pick(agents), to = pick(agents);
+  const stamped = kind === "opened" || kind === "replied"; // a label move carries no speaker stamp
   return {
-    id: crypto.randomUUID().replaceAll("-", ""),
-    at: new Date(Date.now() - Math.floor(Math.random() * 60_000)).toISOString(),
-    kind,
-    from: pick(agents),
-    to: pick(agents),
+    id: crypto.randomUUID().replaceAll("-", "").slice(0, 24),
+    at: new Date(Date.now() - Math.floor(Math.random() * 60_000)).toISOString().replace(/\.\d{3}Z$/, "Z"),
+    kind, from, to,
+    by: kind === "replied" ? pick([from, to]) : null,
     state: states[kind],
-    provider: labelMove ? null : "claude-code:cli",
-    model: labelMove ? null : pick(["claude-opus-5-5", "claude-sonnet-5"]),
+    provider: stamped ? "claude-code:cli" : null,
+    model: stamped ? pick(["Opus 5.5 (1M context)", "Opus 5 (1M context)"]) : null,
   };
-});
-console.log(JSON.stringify(events));
+}).sort((a, b) => a.at.localeCompare(b.at));
+const since = args[args.indexOf("--since") + 1];
+console.log(JSON.stringify({ schema: "urb-events/1", since, until: new Date().toISOString(), events }, null, 2));
 
 export {};

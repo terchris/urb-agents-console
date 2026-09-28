@@ -5,9 +5,10 @@
 // id never reaches Postgres, the API or the page. Activity stays countable; it is not attributable.
 //
 // The list is marketing's (tools/bus-stats.ts in terchris/marketing), so the two public pages name
-// the same agents, with one difference:
-//   - `terje` is NOT listed. He is a person, not an agent, and whether he may appear on a
-//     public, real-time feed is his decision, still open (1PRIORITY.md).
+// the same agents:
+//   - `terje` IS listed, by name. He is a person, not an agent; he decided it himself (#1663,
+//     2026-09-28: "Im fine with that. use my name"). That consent is his alone: any other person's
+//     id is a fresh question for Terje, never an addition here.
 //   - `urbalurba` is not listed: a private platform, left off the public pages by Terje (2026-09-28).
 //   - `rc-eval` is not listed: the fleet rule is never to ring it, and quiet today is not a decision.
 // Adding an id is an exposure decision: Terje's.
@@ -18,6 +19,7 @@ export const ALLOWLIST: ReadonlySet<string> = new Set([
   "client-provisioning", "devcontainer-toolbox", "sovdev-logger",
   "assist", "noclickops", "urb-agents-console",
   "urb-agents-maintainer", "marketing",
+  "terje", // a person, by his own decision (#1663, #1665)
 ]);
 
 export function fold(id: string, allow: ReadonlySet<string> = ALLOWLIST): string {

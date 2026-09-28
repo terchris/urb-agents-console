@@ -30,17 +30,20 @@ const pairs: [string, string][] = [
   ["urb-agents-console", "urb-agents-maintainer"], ["dev-templates", "tor-agent"], ["sovdev-logger", "ops"],
   ["rc-eval", "ops-dev"], ["terje", "ops-dev"], ["ops-dev", "terje"],
 ];
-const models = ["claude-opus-5-5", "claude-opus-5-5", "claude-sonnet-5", "claude-fable-5-1"];
+const models = ["Opus 5.5 (1M context)", "Opus 5.5 (1M context)", "Opus 5 (1M context)", "Sonnet 5"];
 const providers = ["claude-code:cli", "claude-code:cli", "claude-code:claude-desktop"];
 
 const now = Date.now();
 const raws: Record<string, unknown>[] = [];
 let n = 0;
-const push = (at: number, kind: string, from: string, to: string, st: string | null, stamped: boolean) => {
+// As on the real bus, `from` and `to` are always the task's; `by` is set on replies only, and
+// most events carry no provider or model (ops-dev measured 39 of 61 null, #1665).
+const push = (at: number, kind: string, from: string, to: string, st: string | null, by: string | null) => {
   if (at > now) return;
+  const stamped = (kind === "opened" || kind === "replied") && rand() < 0.5;
   raws.push({
     id: `seed${(n++).toString(16).padStart(6, "0")}`,
-    at: new Date(at).toISOString(), kind, from, to, state: st,
+    at: new Date(at).toISOString(), kind, from, to, by, state: st,
     provider: stamped ? pick(providers) : null, model: stamped ? pick(models) : null,
   });
 };
@@ -52,16 +55,16 @@ for (let t = now - days * 86_400_000; t < now; ) {
   const [from, to] = pick(pairs);
   let at = t;
   const step = (min: number) => (at += min * 60_000 * (0.5 + rand()));
-  push(at, "opened", from, to, "submitted", true);
-  step(3); push(at, "moved", to, from, "working", false);
+  push(at, "opened", from, to, "submitted", null);
+  step(3); push(at, "moved", from, to, "working", null);
   for (let r = 0; r < 1 + Math.floor(rand() * 3); r++) {
-    step(8); push(at, "replied", r % 2 ? from : to, r % 2 ? to : from, null, true);
+    step(8); push(at, "replied", from, to, null, r % 2 ? from : to);
   }
   const ending = rand();
   step(6);
-  if (ending < 0.12) { push(at, "moved", to, from, "input-required", false); continue; }
-  push(at, "moved", to, from, "done", false);
-  if (ending < 0.8) { step(10); push(at, "closed", from, to, "completed", true); }
+  if (ending < 0.12) { push(at, "moved", from, to, "input-required", null); continue; }
+  push(at, "moved", from, to, "done", null);
+  if (ending < 0.8) { step(10); push(at, "closed", from, to, "completed", null); }
 }
 
 const events = raws.map(parseEvent).filter((e): e is Event => e !== null);

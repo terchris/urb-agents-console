@@ -38,22 +38,34 @@ const Who: FC<{ id: string | null }> = ({ id }) =>
     : id === OTHERS ? <span class="who others" title="An agent not on the public list">others</span>
       : <span class="who">{id}</span>;
 
-const VERB: Record<"opened" | "replied", string> = { opened: "opened a task for", replied: "replied to" };
+// One sentence per event, claiming no more than the contract says. `from` and `to` are the TASK's
+// sender and recipient; only `by` says who acted, and only on a reply. So a move or a close is
+// described as happening to a task, never as something an agent did.
+const Task: FC<{ e: Event }> = ({ e }) => (
+  <>a task from <Who id={e.from} /> to <Who id={e.to} /></>
+);
+
+const What: FC<{ e: Event }> = ({ e }) => {
+  switch (e.kind) {
+    case "opened":
+      return <><Who id={e.from} /> opened a task for <Who id={e.to} /></>;
+    case "replied":
+      if (e.by !== null && (e.by === e.from || e.by === e.to) && e.from !== e.to)
+        return <><Who id={e.by} /> replied to <Who id={e.by === e.from ? e.to : e.from} /></>;
+      if (e.by !== null && e.from === e.to && e.by === e.from) return <><Who id={e.by} /> replied on its own task</>;
+      return e.by !== null ? <><Who id={e.by} /> replied on <Task e={e} /></> : <>A reply on <Task e={e} /></>;
+    case "moved":
+      return <>A task from <Who id={e.from} /> to <Who id={e.to} /> moved to <b class="state">{e.state ?? "a new state"}</b></>;
+    case "closed":
+      return <>A task from <Who id={e.from} /> to <Who id={e.to} /> was closed{e.state ? <> as <b class="state">{e.state}</b></> : null}</>;
+  }
+};
 
 const Row: FC<{ e: Event }> = ({ e }) => (
   <li class={`ev k-${e.kind}`} data-id={e.id}>
     <time datetime={e.at}>{timeFmt.format(new Date(e.at))}</time>
     <span class="dot" aria-hidden="true" />
-    <span class="what">
-      <Who id={e.from} />{" "}
-      {e.kind === "moved" ? (
-        <>moved a task to <b class="state">{e.state ?? "a new state"}</b></>
-      ) : e.kind === "closed" ? (
-        <>closed a task{e.state ? <> as <b class="state">{e.state}</b></> : null}</>
-      ) : (
-        <>{VERB[e.kind]} <Who id={e.to} /></>
-      )}
-    </span>
+    <span class="what"><What e={e} /></span>
     {e.model ? <span class="model" title={e.provider ?? undefined}>{e.model}</span> : null}
   </li>
 );
@@ -91,9 +103,9 @@ const Agents: FC<{ agents: AgentSummary[]; now: number }> = ({ agents, now }) =>
             <span class="name">{a.id}</span>
             <span class="seen">{ago(a.lastSeen, now)}</span>
             <span class="counts">
-              <span title="tasks opened">{a.opened} opened</span>
+              <span title="tasks it opened">{a.opened} opened</span>
               <span title="tasks opened to it">{a.received} received</span>
-              <span title="replies">{a.replied} replies</span>
+              <span title="replies it wrote">{a.replied} {a.replied === 1 ? "reply" : "replies"}</span>
             </span>
           </li>
         ))}
@@ -102,11 +114,10 @@ const Agents: FC<{ agents: AgentSummary[]; now: number }> = ({ agents, now }) =>
   </section>
 );
 
-export type LiveProps = { events: Event[]; agents: AgentSummary[]; now: number; next: string | null; paged: boolean };
+export type LiveProps = { events: Event[]; agents: AgentSummary[]; total: number; now: number; next: string | null; paged: boolean };
 
 /** The part the script refreshes. */
-export const Live: FC<LiveProps> = ({ events, agents, now, next, paged }) => {
-  const total = agents.reduce((n, a) => n + a.opened + a.replied + a.moved + a.closed, 0);
+export const Live: FC<LiveProps> = ({ events, agents, total, now, next, paged }) => {
   const newest = events[0];
   return (
     <div id="live" data-paged={paged ? "1" : "0"}>
@@ -139,7 +150,8 @@ export const Page: FC<LiveProps & { note?: string }> = (p) => (
         <Live {...p} />
         <footer>
           <p>
-            Shown: when, who to whom, the new state, and the model that spoke. Never a task's title, body or number.
+            Shown: when, the task's sender and recipient, who replied, the new state, and the model that wrote it
+            where the bus records one. Never a task's title, body or number.
             Agents that are not on the public list appear as <i>others</i>. Times are {ZONE.replace("_", " ")} time.
           </p>
           <p>The same data as JSON: <a href="/v1/events">/v1/events</a> · <a href="/v1/openapi.json">OpenAPI 3.1</a></p>

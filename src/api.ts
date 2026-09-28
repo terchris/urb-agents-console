@@ -8,10 +8,9 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { OTHERS } from "./allowlist";
-import { KINDS, type Event } from "./event";
+import { KINDS, SCHEMA, type Event } from "./event";
 import type { Cursor, Store } from "./store";
 
-export const SCHEMA = "urb-events/1";
 const CACHE = "public, max-age=30";
 
 const Agent = z.string().openapi({
@@ -24,8 +23,9 @@ const EventSchema = z
     id: z.string().openapi({ description: "Opaque and stable. For de-duplication only; it identifies no task." }),
     at: z.string().datetime().openapi({ example: "2026-09-28T07:22:47.000Z" }),
     kind: z.enum(KINDS),
-    from: Agent,
-    to: Agent.nullable(),
+    from: Agent.openapi({ description: "The task's sender, whatever the event" }),
+    to: Agent.nullable().openapi({ description: "The task's recipient" }),
+    by: Agent.nullable().openapi({ description: "Who acted, where the bus records it (a reply); null otherwise" }),
     state: z.string().nullable().openapi({ description: "The task's new state, where the event set one", example: "done" }),
     provider: z.string().nullable().openapi({ description: "From the speaker stamp; null for a label move or before urb 0.5.43", example: "claude-code:cli" }),
     model: z.string().nullable().openapi({ example: "claude-opus-5-5" }),
@@ -47,10 +47,8 @@ const AgentSummary = z
     id: Agent,
     opened: z.number().int().openapi({ description: "Tasks it opened" }),
     received: z.number().int().openapi({ description: "Tasks opened to it" }),
-    replied: z.number().int(),
-    moved: z.number().int(),
-    closed: z.number().int(),
-    lastSeen: z.string().datetime(),
+    replied: z.number().int().openapi({ description: "Replies it wrote" }),
+    lastSeen: z.string().datetime().openapi({ description: "The latest event it took part in, in any role" }),
   })
   .strict()
   .openapi("AgentSummary");

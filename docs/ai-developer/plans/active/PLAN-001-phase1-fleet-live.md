@@ -127,7 +127,7 @@ Blocked on others; see 1PRIORITY.md.
 - [ ] 5.1 Postgres from `uis configure postgresql --app urb-agents-console --init-file config/init-database.sql` (tor-agent / imac), and its `cluster.database_url` stored as the Secret `urb-agents-console-db`. That is UIS's documented gap: say where it bites, and report where UIS falls short.
 - [ ] 5.1b `fleet-web` gets the same `DATABASE_URL` from the same Secret
 - [ ] 5.2 The read-only bus token as a cluster Secret (Terje)
-- [ ] 5.3 Switch from the fake `urb` to `urb events` once urb-agents-maintainer releases it
+- [x] 5.3 `urb events` shipped in cli-v0.5.48. Fitted to the real contract: the output is an object `{schema, since, until, events}`; there is a `by` field (who acted, set on replies; `from`/`to` are always the task's); model names include spaces and brackets; `until` is the mark; `--json` needs `URB_EVENTS_KEY`. Verified locally: one run against the real feed read 307 events from 24 hours with none dropped (local database only; nothing committed)
 - [ ] 5.4 Public hostnames through the tunnel (Terje decides the cluster and the domain)
 
 ### Validation
@@ -144,6 +144,9 @@ Events appear on `fleet.<domain>` within about two minutes of a bus action, and 
 - [ ] No secret in the repository
 
 ## Questions for urb-agents-maintainer (about `urb events`)
+
+Answered by the release: 1 (an object, pretty-printed), 2 (an ISO time works), 4 (`to` was never null in 307 rows; it stays nullable). Still open: 3 and 5.
+
 
 1. `--json`: one JSON array, or one object per line?
 2. Does `--since` take a full ISO timestamp, like `2026-09-28T07:22:47Z`?

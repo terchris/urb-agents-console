@@ -6,7 +6,7 @@ import type { Event } from "./event";
 import { MemoryStore, PgStore, type WritableStore } from "./store";
 
 const ev = (id: string, at: string, over: Partial<Event> = {}): Event => ({
-  id, at, kind: "replied", from: "ops-dev", to: "marketing", state: "done",
+  id, at, kind: "replied", from: "ops-dev", to: "marketing", by: null, state: "done",
   provider: "claude-code:cli", model: "claude-opus-5-5", ...over,
 });
 
@@ -44,8 +44,11 @@ for (const [name, make] of stores) {
 
     test("rows come back exactly as they went in", async () => {
       const e = ev("x", "2026-09-28T07:22:47.000Z", { to: null, provider: null, model: null, kind: "moved" });
+      const r = ev("y", "2026-09-28T07:22:48.000Z", { by: "marketing", model: "Opus 5.5 (1M context)" });
+      await s.collect([r], null);
+      expect(await s.readEvents({ limit: 1 })).toEqual([r]);
       await s.collect([e], null);
-      expect(await s.readEvents({ limit: 1 })).toEqual([e]);
+      expect(await s.readEvents({ limit: 2 })).toEqual([r, e]);
     });
 
     test("paging by cursor loses nothing when events share a timestamp", async () => {
@@ -59,18 +62,22 @@ for (const [name, make] of stores) {
       expect(byTime.map((e) => e.id)).toEqual(["d"]);
     });
 
-    test("agents counts each end of each event since a time", async () => {
+    test("agents credits only what the contract attributes: opened, received, and replies by `by`", async () => {
       await s.collect([
         ev("1", "2026-09-28T07:00:00.000Z", { kind: "opened", from: "ops-dev", to: "marketing" }),
-        ev("2", "2026-09-28T07:05:00.000Z", { kind: "replied", from: "marketing", to: "ops-dev" }),
-        ev("3", "2026-09-28T07:06:00.000Z", { kind: "moved", from: "marketing", to: null }),
+        ev("2", "2026-09-28T07:05:00.000Z", { kind: "replied", from: "ops-dev", to: "marketing", by: "marketing" }),
+        ev("3", "2026-09-28T07:06:00.000Z", { kind: "moved", from: "ops-dev", to: "marketing", state: "done" }),
+        ev("4", "2026-09-28T07:07:00.000Z", { kind: "replied", from: "atlas", to: "imac", by: null }),
         ev("0", "2026-09-27T07:00:00.000Z", { kind: "opened", from: "atlas", to: "ops-dev" }),
       ], null);
       const a = await s.agents(new Date("2026-09-28T00:00:00Z"));
       expect(a).toEqual([
-        { id: "marketing", opened: 0, received: 1, replied: 1, moved: 1, closed: 0, lastSeen: "2026-09-28T07:06:00.000Z" },
-        { id: "ops-dev", opened: 1, received: 0, replied: 0, moved: 0, closed: 0, lastSeen: "2026-09-28T07:05:00.000Z" },
+        { id: "atlas", opened: 0, received: 0, replied: 0, lastSeen: "2026-09-28T07:07:00.000Z" },
+        { id: "imac", opened: 0, received: 0, replied: 0, lastSeen: "2026-09-28T07:07:00.000Z" },
+        { id: "marketing", opened: 0, received: 1, replied: 1, lastSeen: "2026-09-28T07:06:00.000Z" },
+        { id: "ops-dev", opened: 1, received: 0, replied: 0, lastSeen: "2026-09-28T07:06:00.000Z" },
       ]);
+      expect(await s.count(new Date("2026-09-28T00:00:00Z"))).toBe(4);
     });
 
     test("prune deletes only what is older than the cut", async () => {

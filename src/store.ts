@@ -6,14 +6,15 @@ import type { Event, Kind } from "./event";
 
 export type Cursor = { at: string; id: string | null };
 
+// What can honestly be attributed to an agent: `from` opened the task, `to` received it, and `by`
+// wrote a reply. A move or a close carries no actor in the contract, so it counts only towards
+// when an agent was last seen (as the task's sender or recipient), never as something it did.
 export type AgentSummary = {
   id: string;
   opened: number; // tasks it opened
   received: number; // tasks opened to it
-  replied: number;
-  moved: number;
-  closed: number;
-  lastSeen: string;
+  replied: number; // replies it wrote
+  lastSeen: string; // the latest event it took part in, in any role
 };
 
 export interface Store {
@@ -21,6 +22,8 @@ export interface Store {
   readEvents(opts: { before?: Cursor; limit: number }): Promise<Event[]>;
   /** Per id, from events at or after `since`. */
   agents(since: Date): Promise<AgentSummary[]>;
+  /** How many events at or after `since`. */
+  count(since: Date): Promise<number>;
 }
 
 export interface WritableStore extends Store {
@@ -48,7 +51,7 @@ export class PgStore implements WritableStore {
         ? sql`WHERE at < ${before.at}`
         : sql`WHERE (at, id) < (${before.at}::timestamptz, ${before.id})`;
     const rows = await sql`
-      SELECT id, at, kind, from_id, to_id, state, provider, model
+      SELECT id, at, kind, from_id, to_id, by_id, state, provider, model
       FROM events ${where}
       ORDER BY at DESC, id DESC
       LIMIT ${limit}`;
@@ -57,28 +60,31 @@ export class PgStore implements WritableStore {
 
   async agents(since: Date): Promise<AgentSummary[]> {
     const rows = await this.sql`
-      WITH ends AS (
-        SELECT from_id AS agent, kind, false AS inbound, at FROM events WHERE at >= ${since}
+      WITH roles AS (
+        SELECT from_id AS agent, 'from' AS role, kind, at FROM events WHERE at >= ${since}
         UNION ALL
-        SELECT to_id, kind, true, at FROM events WHERE at >= ${since} AND to_id IS NOT NULL
+        SELECT to_id, 'to', kind, at FROM events WHERE at >= ${since} AND to_id IS NOT NULL
+        UNION ALL
+        SELECT by_id, 'by', kind, at FROM events WHERE at >= ${since} AND by_id IS NOT NULL
       )
       SELECT agent,
-             count(*) FILTER (WHERE NOT inbound AND kind = 'opened')::int  AS opened,
-             count(*) FILTER (WHERE inbound AND kind = 'opened')::int      AS received,
-             count(*) FILTER (WHERE NOT inbound AND kind = 'replied')::int AS replied,
-             count(*) FILTER (WHERE NOT inbound AND kind = 'moved')::int   AS moved,
-             count(*) FILTER (WHERE NOT inbound AND kind = 'closed')::int  AS closed,
+             count(*) FILTER (WHERE role = 'from' AND kind = 'opened')::int AS opened,
+             count(*) FILTER (WHERE role = 'to' AND kind = 'opened')::int   AS received,
+             count(*) FILTER (WHERE role = 'by' AND kind = 'replied')::int  AS replied,
              max(at) AS last_seen
-      FROM ends GROUP BY agent ORDER BY max(at) DESC, agent COLLATE "C"`;
+      FROM roles GROUP BY agent ORDER BY max(at) DESC, agent COLLATE "C"`;
     return rows.map((r: Record<string, unknown>) => ({
       id: r.agent as string,
       opened: r.opened as number,
       received: r.received as number,
       replied: r.replied as number,
-      moved: r.moved as number,
-      closed: r.closed as number,
       lastSeen: (r.last_seen as Date).toISOString(),
     }));
+  }
+
+  async count(since: Date): Promise<number> {
+    const [row] = await this.sql`SELECT count(*)::int AS n FROM events WHERE at >= ${since}`;
+    return row.n as number;
   }
 
   async collect(events: Event[], mark: Date | null): Promise<number> {
@@ -86,7 +92,7 @@ export class PgStore implements WritableStore {
       let inserted = 0;
       if (events.length > 0) {
         const rows = events.map((e) => ({
-          id: e.id, at: e.at, kind: e.kind, from_id: e.from, to_id: e.to,
+          id: e.id, at: e.at, kind: e.kind, from_id: e.from, to_id: e.to, by_id: e.by,
           state: e.state, provider: e.provider, model: e.model,
         }));
         const done = await tx`INSERT INTO events ${tx(rows)} ON CONFLICT (id) DO NOTHING RETURNING id`;
@@ -119,6 +125,7 @@ function toEvent(r: Record<string, unknown>): Event {
     kind: r.kind as Kind,
     from: r.from_id as string,
     to: (r.to_id as string | null) ?? null,
+    by: (r.by_id as string | null) ?? null,
     state: (r.state as string | null) ?? null,
     provider: (r.provider as string | null) ?? null,
     model: (r.model as string | null) ?? null,
@@ -139,20 +146,29 @@ export class MemoryStore implements WritableStore {
   async agents(since: Date): Promise<AgentSummary[]> {
     const by = new Map<string, AgentSummary>();
     const get = (id: string, at: string) => {
-      const a = by.get(id) ?? { id, opened: 0, received: 0, replied: 0, moved: 0, closed: 0, lastSeen: at };
+      const a = by.get(id) ?? { id, opened: 0, received: 0, replied: 0, lastSeen: at };
       if (at > a.lastSeen) a.lastSeen = at;
       by.set(id, a);
       return a;
     };
     for (const e of this.events) {
       if (e.at < since.toISOString()) continue;
-      get(e.from, e.at)[e.kind]++;
+      const from = get(e.from, e.at);
+      if (e.kind === "opened") from.opened++;
       if (e.to !== null) {
-        const t = get(e.to, e.at);
-        if (e.kind === "opened") t.received++;
+        const to = get(e.to, e.at);
+        if (e.kind === "opened") to.received++;
+      }
+      if (e.by !== null) {
+        const actor = get(e.by, e.at);
+        if (e.kind === "replied") actor.replied++;
       }
     }
     return [...by.values()].sort((a, b) => cmp(b.lastSeen, a.lastSeen) || cmp(a.id, b.id));
+  }
+
+  async count(since: Date): Promise<number> {
+    return this.events.filter((e) => e.at >= since.toISOString()).length;
   }
 
   async collect(events: Event[], mark: Date | null): Promise<number> {

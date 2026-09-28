@@ -4,7 +4,7 @@ import { EVENT_FIELDS, parseEvent, parseEvents } from "./event";
 
 const row = {
   id: "a1b2c3", at: "2026-09-28T07:22:47Z", kind: "replied",
-  from: "ops-dev", to: "marketing", state: "done",
+  from: "ops-dev", to: "marketing", by: "marketing", state: "done",
   provider: "claude-code:cli", model: "claude-opus-5-5",
 };
 
@@ -18,8 +18,12 @@ test("a field the contract does not name is dropped, never stored", () => {
 });
 
 test("an id not on the allowlist is folded to others, on both ends", () => {
-  expect(parseEvent({ ...row, from: "rc-eval", to: "terje" })).toMatchObject({ from: OTHERS, to: OTHERS });
+  expect(parseEvent({ ...row, from: "rc-eval", to: "someone-new", by: "urbalurba" })).toMatchObject({ from: OTHERS, to: OTHERS, by: OTHERS });
   expect(parseEvent({ ...row, to: "urbalurba" })).toMatchObject({ from: "ops-dev", to: OTHERS });
+});
+
+test("terje is shown by name, by his own decision (#1663)", () => {
+  expect(parseEvent({ ...row, from: "terje", by: "terje" })).toMatchObject({ from: "terje", by: "terje" });
 });
 
 test("a row missing what it needs is dropped", () => {
@@ -31,20 +35,32 @@ test("a row missing what it needs is dropped", () => {
 });
 
 test("free text cannot ride in on a harmless-looking field", () => {
-  const e = parseEvent({ ...row, state: "done <script>", model: "a model with spaces", provider: 42, to: "x y" });
+  const e = parseEvent({ ...row, state: "done <script>", model: "Opus <b>5</b>", provider: 42, to: "x y" });
   expect(e).toMatchObject({ state: null, model: null, provider: null, to: null });
 });
 
-test("provider and model may be null, as the contract says", () => {
-  expect(parseEvent({ ...row, kind: "moved", provider: null, model: null })).toMatchObject({ provider: null, model: null });
+test("provider, model and by may be null, as the contract says", () => {
+  expect(parseEvent({ ...row, kind: "moved", by: null, provider: null, model: null })).toMatchObject({ by: null, provider: null, model: null });
 });
 
-test("output is read as a JSON array or as one object per line", () => {
-  const two = [row, { ...row, id: "d4e5f6" }];
-  expect(parseEvents(JSON.stringify(two)).events).toHaveLength(2);
-  expect(parseEvents(two.map((r) => JSON.stringify(r)).join("\n") + "\n").events).toHaveLength(2);
-  expect(parseEvents("")).toEqual({ events: [], dropped: 0 });
-  expect(parseEvents(JSON.stringify([row, { kind: "x" }])).dropped).toBe(1);
+test("a model as urb writes it, with spaces and brackets, is kept", () => {
+  expect(parseEvent({ ...row, model: "Opus 5.5 (1M context)" })!.model).toBe("Opus 5.5 (1M context)");
+});
+
+const doc = (events: unknown[], over: Record<string, unknown> = {}) =>
+  JSON.stringify({ schema: "urb-events/1", since: "2026-09-28T06:00:00Z", until: "2026-09-28T08:00:00Z", events, ...over }, null, 2);
+
+test("output is the urb-events/1 object, pretty-printed or not, and until is read", () => {
+  const r = parseEvents(doc([row, { ...row, id: "d4e5f6" }, { kind: "x" }]));
+  expect(r.events).toHaveLength(2);
+  expect(r.dropped).toBe(1);
+  expect(r.until?.toISOString()).toBe("2026-09-28T08:00:00.000Z");
+});
+
+test("another schema, or no events array, is refused whole", () => {
+  expect(() => parseEvents(doc([row], { schema: "urb-events/2" }))).toThrow(/schema/);
+  expect(() => parseEvents(JSON.stringify([row]))).toThrow();
+  expect(() => parseEvents(JSON.stringify({ schema: "urb-events/1" }))).toThrow(/events/);
 });
 
 test("output that is not JSON throws, so the collector keeps its mark", () => {
