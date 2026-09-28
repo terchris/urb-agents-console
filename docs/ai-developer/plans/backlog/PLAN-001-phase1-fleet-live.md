@@ -38,7 +38,9 @@ These are mine. Where Terje has to confirm, it says so.
 | | |
 | --- | --- |
 | Database client | **`Bun.sql`**, Bun's built-in Postgres client, so there is no driver dependency. It goes into `docs/hono-notes.md` as a Bun finding, not a Hono one. |
-| Migrations | Plain numbered SQL files in `migrations/`, applied at startup by the collector only, under a Postgres advisory lock. The web app never runs DDL. |
+| Schema | **`config/init-database.sql`, applied by UIS**: `uis configure postgresql --app urb-agents-console --init-file`. Every statement is idempotent (`create … if not exists`), so re-running it is safe. This follows dev-templates' `python-basic-webserver-database`. Neither the collector nor the web app runs DDL, which keeps "UIS provisions, ArgoCD deploys". |
+| Database connection | One Secret, **`urb-agents-console-db`**, with key `DATABASE_URL`, holding the `cluster.database_url` that `uis configure postgresql --json` returns. Both Deployments read it through `secretKeyRef`; the dev-templates convention is `<app>-db`. |
+| The public API | **Hono, not PostgREST** (Terje, 2026-09-28). Atlas serves its API as PostgREST over `api_v1` views, which UIS provides for each app. That would be less code, but trialling Hono is the point of this repository, and in Hono the contract's field list is enforced in code and tests rather than in grants. The alternative goes into `docs/hono-notes.md`. |
 | The allowlist | `src/allowlist.ts`, a checked-in `Set`, visible in the public repo. **An id that isn't listed is rewritten to `others` before the row is written**, so the id never reaches Postgres. This is marketing's fold (`tools/bus-stats.ts`): activity stays countable, but it is not attributable. `rc-eval`, `urbalurba` and `terje` are not listed. |
 | Only publishable fields | The collector parses each row against an explicit field list, and **fields it does not know are dropped rather than stored**. If `urb events` ever adds a field, the field goes nowhere until this code names it (contract 3). |
 | Frontend | **Proposed: server-rendered Hono JSX** (`hono/jsx`), plus a small inline script that polls `/v1/events` every 30 s. One image, no build step, and it exercises the part of Hono Terje wants to trial. *Terje confirms.* |
@@ -48,7 +50,7 @@ These are mine. Where Terje has to confirm, it says so.
 ## Schema
 
 ```sql
-create table events (
+create table if not exists events (
   id         text primary key,          -- the contract's opaque hash: de-duplication only
   at         timestamptz not null,
   kind       text not null check (kind in ('opened','moved','replied','closed')),
@@ -59,9 +61,9 @@ create table events (
   model      text,
   collected  timestamptz not null default now()
 );
-create index events_at on events (at desc);
+create index if not exists events_at on events (at desc);
 
-create table collector_mark (
+create table if not exists collector_mark (
   name  text primary key,               -- 'events'
   since timestamptz not null,
   ran   timestamptz not null
@@ -72,7 +74,7 @@ create table collector_mark (
 
 ### Tasks
 
-- [ ] 1.1 `migrations/001-events.sql` (above), and a migrator that applies it under `pg_advisory_lock`
+- [ ] 1.1 `config/init-database.sql` (above), idempotent, for UIS to apply. For local tests, the same file is applied with `psql -f` to a throwaway Postgres.
 - [ ] 1.2 `src/store.ts`: `insertEvents(rows)` (`on conflict (id) do nothing`), `readEvents({before, limit})`, `getMark` / `setMark`, `prune(olderThan)`
 - [ ] 1.3 `src/event.ts`: `parseEvent(unknown) → Event | null`, which applies the field list, the allowlist fold, the `kind` check and the ISO `at` check
 - [ ] 1.4 Tests: `parseEvent` against good, bad and extra-field rows, with no database needed; the store against a throwaway local Postgres (`docker run postgres`), skipped when `DATABASE_URL` is unset
@@ -93,7 +95,7 @@ create table collector_mark (
 - [ ] 2.3 Daily prune (retention)
 - [ ] 2.4 A fake `urb` (a script that prints fixture rows) for tests and local runs, selected with `URB_BIN`
 - [ ] 2.5 Image: add the Linux `urb` build of the release that `fleet/cli-version` routes, checked against `SHA256SUMS` at build time (contract 2)
-- [ ] 2.6 `manifests/collector.yaml`: Deployment `fleet-collector`, `replicas: 1`, `strategy: Recreate`, command `bun run src/collector.ts`, pod label `app: fleet-collector` so `fleet-service` never selects it, and no Service. The bus token and `DATABASE_URL` come from Secrets, referenced by name only.
+- [ ] 2.6 `manifests/collector.yaml`: Deployment `fleet-collector`, `replicas: 1`, `strategy: Recreate`, command `bun run src/collector.ts`, pod label `app: fleet-collector` so `fleet-service` never selects it, and no Service. `DATABASE_URL` comes from the Secret `urb-agents-console-db`, and the bus token from its own Secret. Both are referenced by name only.
 
 ### Validation
 
@@ -138,7 +140,8 @@ Blocked on others; see 1PRIORITY.md.
 
 ### Tasks
 
-- [ ] 5.1 Postgres from `uis configure postgresql --app urb-agents-console` (tor-agent / imac). Report where UIS falls short.
+- [ ] 5.1 Postgres from `uis configure postgresql --app urb-agents-console --init-file config/init-database.sql` (tor-agent / imac), and its `cluster.database_url` stored as the Secret `urb-agents-console-db`. That is UIS's documented gap: say where it bites, and report where UIS falls short.
+- [ ] 5.1b `fleet-web` gets the same `DATABASE_URL` from the same Secret
 - [ ] 5.2 The read-only bus token as a cluster Secret (Terje)
 - [ ] 5.3 Switch from the fake `urb` to `urb events` once urb-agents-maintainer releases it
 - [ ] 5.4 Public hostnames through the tunnel (Terje decides the cluster and the domain)

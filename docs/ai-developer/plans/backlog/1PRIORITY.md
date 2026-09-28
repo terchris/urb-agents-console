@@ -30,7 +30,7 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 |---|---|---|---|
 | **`urb events`** — the publishable event stream | urb-agents-maintainer, then a release | 2026-09-28 | the collector |
 | **A read-only bus token as a cluster Secret** | Terje | 2026-09-28 | the collector reading the bus |
-| **Postgres for the app** — `uis configure postgresql --app urb-agents-console` | tor-agent / imac | 2026-09-28 | storing events |
+| **Postgres for the app** — `uis configure postgresql --app urb-agents-console --init-file config/init-database.sql`, with the URL as Secret `urb-agents-console-db` | tor-agent / imac | 2026-09-28 | storing events |
 | **Which cluster serves it publicly, and `fleet.` / `api-fleet.urbalurba.com` through the tunnel** | Terje | 2026-09-28 | being public |
 | **The frontend: server-rendered Hono JSX, or a separate single-page app.** Proposed: JSX (PLAN-001) | Terje confirms | 2026-09-28 | the frontend |
 | **Whether `terje` (a person, not an agent) may appear as sender/recipient on the public feed**. The same question is open for marketing's fleet page. Until he answers, he stays off the allowlist | Terje | 2026-09-28 | the allowlist |
