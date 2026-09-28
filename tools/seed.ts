@@ -7,7 +7,8 @@
 //
 // Each task is a conversation, as on the real bus: opened → moved to working → a reply or two →
 // moved to done → closed by the sender. Busier in the working day than at night. Goes through
-// parseEvent, like the collector, so the allowlist fold applies (rc-eval and terje become others).
+// parseEvent, like the collector, folded with the snapshot of marketing's list (rc-eval becomes others).
+import { SNAPSHOT } from "../src/allowlist";
 import { parseEvent, type Event } from "../src/event";
 import { PgStore } from "../src/store";
 
@@ -67,7 +68,7 @@ for (let t = now - days * 86_400_000; t < now; ) {
   if (ending < 0.8) { step(10); push(at, "closed", from, to, "completed", null); }
 }
 
-const events = raws.map(parseEvent).filter((e): e is Event => e !== null);
+const events = raws.map((r) => parseEvent(r, SNAPSHOT)).filter((e): e is Event => e !== null);
 let inserted = 0;
 for (let i = 0; i < events.length; i += 500) inserted += await store.collect(events.slice(i, i + 500), null);
 console.log(`seed: ${events.length} events over ${days} days, ${inserted} new`);
