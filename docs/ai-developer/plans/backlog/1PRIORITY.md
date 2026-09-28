@@ -29,7 +29,7 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 | What | Who | Since | Unblocks |
 |---|---|---|---|
 | **`urb events`** — the publishable event stream | urb-agents-maintainer, then a release | 2026-09-28 | the collector |
-| **How the collector gets `urb`**: `terchris/urb-agents` is private, so its release binary cannot go into this public image. Proposed: an initContainer that downloads it with the bus token (PLAN-001 2.5) | Terje | 2026-09-28 | the collector reading the bus |
+| **How a pod runs `urb` and follows `fleet/cli-version`**: one fleet pattern for `fleet-collector` and `huginn`, which is also unsolved. Terje agreed the binary comes in at pod start, not in the public image (#1662) | urb-agents-maintainer | 2026-09-28 | the collector reading the bus |
 | **A read-only bus token as a cluster Secret** | Terje | 2026-09-28 | the collector reading the bus |
 | **Postgres for the app** — `uis configure postgresql --app urb-agents-console --init-file config/init-database.sql`, with the URL as Secret `urb-agents-console-db` | tor-agent / imac | 2026-09-28 | storing events |
 | **Which cluster serves it publicly, and `fleet.` / `api-fleet.urbalurba.com` through the tunnel** | Terje | 2026-09-28 | being public |
