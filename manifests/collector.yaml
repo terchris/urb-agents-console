@@ -8,6 +8,7 @@
 #     urb-agents-maintainer says which variable `urb` reads in a container (#1651, question 5);
 #   - URB_EVENTS_KEY, in the same Secret: `urb events --json` hashes task ids with it. It must stay
 #     the same forever; a new key gives every event a new id, so the overlap would store them twice;
+#     keep a copy OUTSIDE the cluster: UIS has no backups, and losing it re-keys everything (#1677);
 #   - how `urb` itself gets into the pod (PLAN-001 2.5, Terje). Until then URB_BIN points at a
 #     binary that does not exist, and each tick logs "collect failed; mark kept".
 #
