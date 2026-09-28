@@ -21,8 +21,8 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 
 | # | What | Why this one |
 |---|---|---|
-| **1** | [PLAN-006](../active/PLAN-006-design.md): the redesign (dashboard look, computer and phone, light and dark), together with PLAN-005. **Built; awaiting Terje's look before push** | Terje: "it must look great" |
-| **1b** | [PLAN-005](../active/PLAN-005-marketing-directory.md): marketing's `named` is the one naming list; avatars, roles, pages and her description as a profile panel (#1687, #1689). **Built; awaiting Terje's review before push** | Terje: "use marketing's named list, and build the avatars" |
+| **1** | [PLAN-006](../active/PLAN-006-design.md): the redesign (dashboard look, computer and phone, light and dark), together with PLAN-005. **Live 2026-09-29** | Terje: "it must look great" |
+| **1b** | [PLAN-005](../active/PLAN-005-marketing-directory.md): marketing's `named` is the one naming list; avatars, roles, pages and her description as a profile panel (#1687, #1689). **Live 2026-09-29** | Terje: "use marketing's named list, and build the avatars" |
 | **2** | When the collector first runs: tell marketing on the bus. She adds "see it live" links and a live line on each agent page only once there is data (#1687) | A live link to an empty console reads as broken |
 | **2** | [PLAN-003](../active/PLAN-003-rhythm-view.md): the rhythm view and `/v1/activity`. **Live 2026-09-28** | Defined for phase 1 in the fleet's investigation (activity per hour) |
 | **3** | Two contract questions left on #1651: is a truncated window signalled, and which variable carries the token in a container | Only these can still change the collector |

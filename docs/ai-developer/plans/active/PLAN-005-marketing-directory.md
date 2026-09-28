@@ -48,6 +48,6 @@ The console reads marketing's public `agents.json` (#1687): its `named` list dec
 - [x] The collector names nobody without a list from marketing, now or saved
 - [x] An id removed from marketing's list disappears from what is stored
 - [x] Nothing of marketing's is copied into this repo
-- [ ] Terje reviews it before it is pushed (pushing is publishing)
+- [x] Terje reviews it before it is pushed (pushing is publishing). Published on his word, 2026-09-29.
 - [ ] Tell marketing on the bus the day the collector runs (#1687)
 - [x] An agent profile panel on `?agent=<id>` from marketing's `summary`, `does`, `skills`, `product`, `repository` and `checked` (#1689, live on her side 2026-09-28). Validated as plain text, with https links (a repository only on github.com), and linked back to her page. No panel for an agent without a page.

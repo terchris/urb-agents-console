@@ -47,4 +47,4 @@ The data colours are unchanged in role. Event kinds use the dataviz reference sl
 
 - [x] Works and reads well at 390px and 1280px, in light and dark
 - [x] Nothing but layout changed in what is shown: the same fields and the same allowlist
-- [ ] Terje approves the look, then pushes
+- [x] Terje approves the look, then pushes. Published on his word, 2026-09-29.

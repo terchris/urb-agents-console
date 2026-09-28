@@ -56,6 +56,7 @@ a{color:var(--accent);text-underline-offset:2px}
 .brand{display:flex;align-items:center;gap:.55rem;font:600 1rem/1 var(--display);letter-spacing:-.02em;color:var(--ink);text-decoration:none;margin-right:auto}
 .brand .mark{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--opened),var(--replied));box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--surface) 30%,transparent)}
 .live-pill{display:inline-flex;align-items:center;gap:.35rem;font:600 .72rem/1 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent);padding:.3rem .55rem;border-radius:999px}
+.live-pill.waiting{color:var(--muted);background:var(--surface-2)}
 .live-dot{flex-shrink:0;width:.5rem;height:.5rem;border-radius:50%;background:var(--good);animation:beat 2.4s infinite}
 @keyframes beat{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 55%,transparent)}70%{box-shadow:0 0 0 .45rem transparent}100%{box-shadow:0 0 0 0 transparent}}
 .controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}

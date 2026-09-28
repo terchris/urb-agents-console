@@ -260,12 +260,15 @@ export const Live: FC<LiveProps> = (p) => {
   );
 };
 
-const TopBar: FC<View> = (v) => (
+/** `live`: only when there is a database behind the page; otherwise the pill says it is waiting. */
+const TopBar: FC<View & { live: boolean }> = (v) => (
   <header class="bar">
     <div class="wrap">
       <span class="brand-group" style="display:flex;align-items:center;gap:10px;margin-right:auto">
         <a class="brand" href="/"><span class="mark" aria-hidden="true" />urb fleet</a>
-        <span class="live-pill"><span class="live-dot" aria-hidden="true" />Live</span>
+        {v.live
+          ? <span class="live-pill"><span class="live-dot" aria-hidden="true" />Live</span>
+          : <span class="live-pill waiting" title="No events are being collected yet">Waiting</span>}
       </span>
       <nav class="controls" aria-label="What to show">
         <span class="seg" role="group" aria-label="Time window">
@@ -351,7 +354,7 @@ export const Page: FC<LiveProps & { note?: string }> = (p) => (
       <style dangerouslySetInnerHTML={{ __html: CSS + RHYTHM_CSS }} />
     </head>
     <body>
-      <TopBar window={p.window} agent={p.agent} />
+      <TopBar window={p.window} agent={p.agent} live={!p.note} />
       <main class="wrap">
         <header class="hero">
           <h1>The fleet, live</h1>

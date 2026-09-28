@@ -151,6 +151,8 @@ test("with no database the page says so, and does not fail", async () => {
   const html = await (await createApp(new MemoryStore(), NO_DATABASE).request("/")).text();
   expect(html).toContain(NO_DATABASE);
   expect(html).toContain("No events yet.");
+  expect(html).toContain('<span class="live-pill waiting"'); // it does not claim to be live
+  expect(html).not.toContain('<span class="live-dot"'); // no live dot without a database
 });
 
 test("the page pages back without JavaScript, and a bad cursor goes home", async () => {
