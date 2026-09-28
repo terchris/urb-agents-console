@@ -61,6 +61,14 @@ jobs:
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:${IMAGE_TAG}"
           docker build -t "$IMAGE" .
+          # Smoke test: the image must start and serve before it is pushed. Tests run the source;
+          # this runs the image, which is what the cluster gets.
+          docker run -d --name smoke -p 3000:3000 "$IMAGE"
+          for i in $(seq 1 20); do curl -sf localhost:3000/healthz >/dev/null && break; sleep 1; done
+          curl -sf localhost:3000/healthz || { docker logs smoke; exit 1; }
+          curl -sf localhost:3000/ | grep -q "The fleet, live" || { docker logs smoke; exit 1; }
+          curl -sf localhost:3000/v1/openapi.json | grep -q '"openapi":"3.1.0"' || { docker logs smoke; exit 1; }
+          docker rm -f smoke
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 

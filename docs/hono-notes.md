@@ -28,6 +28,17 @@ repository. Newest entries go at the bottom of each section, and each one gives 
   `env: { ...process.env }` explicitly. It also has a `timeout` option, which kills the child;
   `proc.signalCode` then says so.
 
+- **2026-09-28: the image needs `tsconfig.json`, or JSX breaks at start.** Bun reads
+  `jsxImportSource` from tsconfig at run time. The Dockerfile copied `src/` but not tsconfig, so
+  the container compiled the `.tsx` files for React and died with *"Cannot find module
+  'react/jsx-dev-runtime'"*. Every test passed, because tests run the source, not the image. The
+  rolling update kept the old pod serving, so nothing broke publicly. CI now starts the built
+  image and checks it serves before pushing it. (A `/** @jsxImportSource hono/jsx */` pragma per
+  file would also work; copying tsconfig keeps one source of truth.)
+- **2026-09-28: set `NODE_ENV=production` in the image.** Without it, Bun's `export default { fetch }`
+  server starts in *development* mode ("Started development server"), which can show visitors
+  detailed error pages.
+
 ## Hono
 
 - **2026-09-28: `@hono/zod-openapi` gives OpenAPI 3.1 from the code, and it works well.**

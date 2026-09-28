@@ -8,8 +8,12 @@ RUN bun install --frozen-lockfile --production
 FROM oven/bun:1-slim
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json ./
+# tsconfig.json carries `jsxImportSource: hono/jsx`: without it Bun compiles the .tsx files for
+# React and the app dies at start with "Cannot find module 'react/jsx-dev-runtime'".
+COPY package.json tsconfig.json ./
 COPY src ./src
+# Production: without it Bun serves in development mode, with detailed error pages for visitors.
+ENV NODE_ENV=production
 USER bun
 EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]
