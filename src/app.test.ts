@@ -91,8 +91,47 @@ test("the API describes itself as OpenAPI 3.1, and the Event schema is exactly t
   expect(event.properties.to.type).toEqual(["string", "null"]); // 3.1 nullability, not 3.0's `nullable`
 });
 
-test("the frontend page renders", async () => {
-  const r = await createApp(new MemoryStore()).request("/");
+test("the page renders the events and the agents, with others marked as such", async () => {
+  const now = Date.now();
+  const app = await withEvents([
+    ev("1", new Date(now - 60_000).toISOString(), { kind: "opened", from: "ops-dev", to: "others" }),
+    ev("2", new Date(now - 30_000).toISOString(), { kind: "moved", from: "imac", to: "ops-dev", state: "working", provider: null, model: null }),
+  ]);
+  const r = await app.request("/");
   expect(r.status).toBe(200);
-  expect(await r.text()).toContain("The fleet, live");
+  const html = await r.text();
+  expect(html.startsWith("<!doctype html>")).toBe(true);
+  expect(html).toContain("The fleet, live");
+  expect(html).toContain('<span class="who">ops-dev</span> opened a task for <span class="who others"');
+  expect(html).toContain('moved a task to <b class="state">working</b>');
+  expect(html).toContain('<li class="agent others">');
+  expect(html).not.toContain("Older events"); // one page only
+});
+
+test("with no database the page says so, and does not fail", async () => {
+  const html = await (await createApp(new MemoryStore(), NO_DATABASE).request("/")).text();
+  expect(html).toContain(NO_DATABASE);
+  expect(html).toContain("No events yet.");
+});
+
+test("the page pages back without JavaScript, and a bad cursor goes home", async () => {
+  const base = Date.parse("2026-09-28T07:00:00Z");
+  const app = await withEvents(Array.from({ length: 120 }, (_, i) => ev(`e${String(i).padStart(3, "0")}`, new Date(base + i * 60_000).toISOString())));
+  const first = await (await app.request("/")).text();
+  const next = first.match(/href="\/\?before=([^"]+)"/)?.[1];
+  expect(next).toBeDefined();
+  const older = await (await app.request(`/?before=${next}`)).text();
+  expect((older.match(/class="ev /g) ?? []).length).toBe(20);
+  expect(older).toContain('data-paged="1"');
+  const bad = await app.request("/?before=nonsense");
+  expect(bad.status).toBe(302);
+  expect(bad.headers.get("location")).toBe("/");
+});
+
+test("the live partial is the fragment only, never cached", async () => {
+  const r = await (await withEvents([ev("a", new Date().toISOString())])).request("/partials/live");
+  expect(r.headers.get("cache-control")).toBe("no-store");
+  const html = await r.text();
+  expect(html.startsWith('<div id="live"')).toBe(true);
+  expect(html).not.toContain("<html");
 });

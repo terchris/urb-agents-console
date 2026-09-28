@@ -49,3 +49,14 @@ repository. Newest entries go at the bottom of each section, and each one gives 
   So `servers: [{ url: "/v1" }]` belongs in the `doc31` config.
 - **2026-09-28: CORS is one line** (`hono/cors`), applied to the sub-app with `api.use("*", …)`.
   It covers `/v1/openapi.json` too, so a browser-based API viewer on another origin can read the spec.
+- **2026-09-28: Hono JSX is React-shaped without React, and it renders on the server.** `FC`
+  components, fragments, `.map()`, and `c.html(<Page />)`. It is typed by `jsxImportSource: "hono/jsx"`
+  in tsconfig, the file has to be `.tsx`, and there is no build step: Bun runs it. For a small page
+  it was pleasant. The gotchas:
+  - no `<!doctype html>` from JSX; prepend it as a string: `c.html("<!doctype html>" + (<Page />))`;
+  - text children are escaped, so inline CSS and JS need `dangerouslySetInnerHTML={{ __html }}`;
+  - attributes are `class`, not `className`.
+- **2026-09-28: a partial made of the same component is the easy way to go live.** `/partials/live`
+  returns `<Live />` alone, and a 20-line script swaps it in every 30 s. There's one markup for the
+  first render and every refresh, and no client framework: htmx-style, without htmx.
+

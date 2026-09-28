@@ -106,10 +106,11 @@ Locally, against the fake `urb` and a local Postgres: rows arrive, re-runs add n
 
 ### Tasks
 
-- [ ] 4.1 Hono JSX page: the latest events as a timeline, one line each (time · from → to · kind · state · model), and an agent strip from `/v1/agents`
-- [ ] 4.2 An inline script that polls every 30 s and prepends new rows. The page still works without JavaScript.
-- [ ] 4.3 Light and dark, readable at phone width
-- [ ] 4.4 **Terje reads the page before it goes public (contract 5).**
+- [x] 4.1 Hono JSX page: the latest events as a timeline, one line each (time · from → to · kind · state · model), and an agent strip from `/v1/agents`
+- [x] 4.2 An inline script that polls every 30 s and prepends new rows. The page still works without JavaScript.
+- [x] 4.3 Light and dark, readable at phone width
+- [ ] 4.4 **Terje reads the page before it goes public (contract 5).** ⚠️ Pushing IS going public: imac's cluster already serves `fleet.urbalurba.com` and `api-fleet.urbalurba.com` through its wildcard tunnel (found 2026-09-28), so a push to `main` is live within minutes. Phase 4 stays unpushed until Terje has looked.
+- [x] 4.5 `tools/seed.ts`: a few days of synthetic traffic in a local database, so the page can be seen before `urb events` exists
 
 ### Validation
 

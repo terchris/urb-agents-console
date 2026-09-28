@@ -73,7 +73,7 @@ export function parseCursor(v: string): Cursor | null {
   if (rest.length > 0 || Number.isNaN(d.getTime()) || id === "") return null;
   return { at: d.toISOString(), id: id ?? null };
 }
-const cursorOf = (e: Event) => `${e.at}~${e.id}`;
+export const cursorOf = (e: Event) => `${e.at}~${e.id}`;
 
 const eventsRoute = createRoute({
   method: "get",
