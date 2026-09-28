@@ -14,4 +14,4 @@ in progress.
 
 | Item | What it does | Priority |
 |---|---|---|
-| [PLAN-001-phase1-fleet-live](PLAN-001-phase1-fleet-live.md) | Phase 1: collector → Postgres → public `/v1/events` + Hono JSX page | High |
+| *(none — PLAN-001 is in [`active/`](../active/PLAN-001-phase1-fleet-live.md))* | | |

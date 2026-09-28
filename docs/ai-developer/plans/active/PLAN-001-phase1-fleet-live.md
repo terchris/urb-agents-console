@@ -11,7 +11,7 @@ Collect the bus's events into Postgres with one collector, and serve them public
 > - `WORKFLOW.md` - The implementation process
 > - `PLANS.md` - Plan structure and best practices
 
-## Status: Backlog
+## Status: Active (phases 1–3 approved by Terje, 2026-09-28)
 
 **Goal**: `fleet.<domain>` shows what the fleet is doing within about a minute of it happening, and
 `api-fleet.<domain>/v1/events` serves the same thing as public JSON, with nothing on either that
@@ -43,42 +43,23 @@ These are mine. Where Terje has to confirm, it says so.
 | The public API | **Hono, not PostgREST** (Terje, 2026-09-28). Atlas serves its API as PostgREST over `api_v1` views, which UIS provides for each app. That would be less code, but trialling Hono is the point of this repository, and in Hono the contract's field list is enforced in code and tests rather than in grants. The alternative goes into `docs/hono-notes.md`. |
 | The allowlist | `src/allowlist.ts`, a checked-in `Set`, visible in the public repo. **An id that isn't listed is rewritten to `others` before the row is written**, so the id never reaches Postgres. This is marketing's fold (`tools/bus-stats.ts`): activity stays countable, but it is not attributable. `rc-eval`, `urbalurba` and `terje` are not listed. |
 | Only publishable fields | The collector parses each row against an explicit field list, and **fields it does not know are dropped rather than stored**. If `urb events` ever adds a field, the field goes nowhere until this code names it (contract 3). |
-| Frontend | **Proposed: server-rendered Hono JSX** (`hono/jsx`), plus a small inline script that polls `/v1/events` every 30 s. One image, no build step, and it exercises the part of Hono Terje wants to trial. *Terje confirms.* |
-| Retention | **Proposed: 90 days.** The collector deletes older rows once a day. *Terje confirms.* |
+| Frontend | **Server-rendered Hono JSX** (`hono/jsx`), plus a small inline script that polls `/v1/events` every 30 s. One image, no build step, and it exercises the part of Hono Terje wants to trial. *Confirmed by Terje, 2026-09-28.* |
+| Retention | **90 days.** The collector deletes older rows once a day. *Confirmed by Terje, 2026-09-28.* |
 | Real time | Polling, not SSE or WebSockets. The collector's one-minute cadence sets the latency, so push adds complexity without making anything fresher. |
 
 ## Schema
 
-```sql
-create table if not exists events (
-  id         text primary key,          -- the contract's opaque hash: de-duplication only
-  at         timestamptz not null,
-  kind       text not null check (kind in ('opened','moved','replied','closed')),
-  from_id    text not null,             -- an allowlisted id, or 'others'
-  to_id      text not null,             -- an allowlisted id, or 'others'
-  state      text,
-  provider   text,                      -- null: a label move, or written before urb 0.5.43
-  model      text,
-  collected  timestamptz not null default now()
-);
-create index if not exists events_at on events (at desc);
-
-create table if not exists collector_mark (
-  name  text primary key,               -- 'events'
-  since timestamptz not null,
-  ran   timestamptz not null
-);
-```
+[`config/init-database.sql`](../../../../config/init-database.sql) holds one `events` table in the contract's shape. `id` is `COLLATE "C"`, so paging ties break the same way in Postgres and in JavaScript, and `to_id` is nullable until question 4 is answered. There is also a one-row `collector_mark`.
 
 ## Phase 1: Schema and store
 
 ### Tasks
 
-- [ ] 1.1 `config/init-database.sql` (above), idempotent, for UIS to apply. For local tests, the same file is applied with `psql -f` to a throwaway Postgres.
-- [ ] 1.2 `src/store.ts`: `insertEvents(rows)` (`on conflict (id) do nothing`), `readEvents({before, limit})`, `getMark` / `setMark`, `prune(olderThan)`
-- [ ] 1.3 `src/event.ts`: `parseEvent(unknown) → Event | null`, which applies the field list, the allowlist fold, the `kind` check and the ISO `at` check
-- [ ] 1.4 Tests: `parseEvent` against good, bad and extra-field rows, with no database needed; the store against a throwaway local Postgres (`docker run postgres`), skipped when `DATABASE_URL` is unset
-- [ ] 1.5 Start `docs/hono-notes.md`
+- [x] 1.1 `config/init-database.sql` (above), idempotent, for UIS to apply. For local tests, the same file is applied with `psql -f` to a throwaway Postgres.
+- [x] 1.2 `src/store.ts`: `insertEvents(rows)` (`on conflict (id) do nothing`), `readEvents({before, limit})`, `getMark` / `setMark`, `prune(olderThan)`
+- [x] 1.3 `src/event.ts`: `parseEvent(unknown) → Event | null`, which applies the field list, the allowlist fold, the `kind` check and the ISO `at` check
+- [x] 1.4 Tests: `parseEvent` against good, bad and extra-field rows, with no database needed. One set of store behaviours runs against both `MemoryStore` and `PgStore`; the Postgres half needs `TEST_DATABASE_URL` and runs in CI against a `postgres:16` service. CI now tests before it builds.
+- [x] 1.5 Start `docs/hono-notes.md`
 
 ### Validation
 
@@ -94,7 +75,7 @@ create table if not exists collector_mark (
 - [ ] 2.2 Failure: if `urb` exits non-zero or its output doesn't parse, log it, keep the mark, and try again on the next tick. The collector never exits over a bad run.
 - [ ] 2.3 Daily prune (retention)
 - [ ] 2.4 A fake `urb` (a script that prints fixture rows) for tests and local runs, selected with `URB_BIN`
-- [ ] 2.5 Image: add the Linux `urb` build of the release that `fleet/cli-version` routes, checked against `SHA256SUMS` at build time (contract 2)
+- [ ] 2.5 **Blocked on Terje.** The collector needs the Linux `urb` of the release `fleet/cli-version` routes, checked against `SHA256SUMS` (contract 2). But `terchris/urb-agents` is **private**, so its release assets are too. Baking `urb` into this image would publish it on ghcr.io, and CI would need a cross-repo token. The proposed alternative is an initContainer in `fleet-collector` that downloads the asset with the collector's own read-only bus token, checks `SHA256SUMS`, and hands the binary over through an `emptyDir`: nothing in the image, and no token in CI.
 - [ ] 2.6 `manifests/collector.yaml`: Deployment `fleet-collector`, `replicas: 1`, `strategy: Recreate`, command `bun run src/collector.ts`, pod label `app: fleet-collector` so `fleet-service` never selects it, and no Service. `DATABASE_URL` comes from the Secret `urb-agents-console-db`, and the bus token from its own Secret. Both are referenced by name only.
 
 ### Validation

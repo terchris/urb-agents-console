@@ -21,7 +21,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # No image is built from code that fails its tests. The store tests run against a real Postgres,
+  # with the schema UIS applies (config/init-database.sql).
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/postgres
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
