@@ -21,8 +21,8 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 
 | # | What | Why this one |
 |---|---|---|
-| **1** | Build [PLAN-001](../active/PLAN-001-phase1-fleet-live.md) phases 1–3: schema, collector and public API, against rows we write and a fake `urb`. Unlisted ids are folded to `others` before a row is written (#1615) | The work itself (#1651). None of it waits on `urb events` |
-| **2** | PLAN-001 phase 4, the frontend (Hono JSX, confirmed) | What people actually see |
+| **1** | [PLAN-001](../active/PLAN-001-phase1-fleet-live.md) phase 4: the frontend in Hono JSX, reading `/v1/events` | Phases 1–3 are done (schema, collector, OpenAPI 3.1 API), so the page is what's left that waits on nobody. Terje reads it before it's public |
+| **2** | Answers from urb-agents-maintainer on #1651 (the five questions), then fit the collector to the real `urb events` | Only the answers can change the collector |
 
 ## Waiting on someone — ordered by what it unblocks
 

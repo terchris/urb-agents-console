@@ -22,6 +22,7 @@ it with `urb cat`). This file is what you need day to day.
 | Runtime | **Bun**, the same runtime as `urb` |
 | Deployment | **ArgoCD**, from `manifests/`, on UIS |
 | Hostnames | `fleet.<domain>` is the frontend; `api-fleet.<domain>` is the public API. `<domain>` is `localhost` on a local cluster and, for example, `urbalurba.com` on imac's. |
+| API description | **The API is OpenAPI 3.1.** It is served at `api-fleet.<domain>/v1/openapi.json` and generated from the same Zod schemas that validate requests (`@hono/zod-openapi`, `doc31`), so the spec cannot drift from the code. A test checks that the `Event` schema is exactly the contract. |
 | Public data | events with the model: time, what happened, sender, recipient, new state, provider, model. **Never** titles, bodies, task numbers or the subscription. |
 
 ## The design
@@ -60,11 +61,17 @@ authenticated or private endpoint behind `api-fleet`.** A browser will not send 
 
 | path | what |
 | --- | --- |
-| `src/app.ts` | the Hono app: `/healthz`, `/` (frontend), `/v1/*` (public feed) |
+| `src/app.ts` | the Hono app: `/healthz`, `/` (frontend), and `/v1` mounted from `src/api.ts` |
+| `src/api.ts` | the public API: `/v1/events`, `/v1/agents`, `/v1/openapi.json` (OpenAPI 3.1) |
+| `src/event.ts`, `src/allowlist.ts` | the one door a bus row comes in by: known fields only, unlisted ids folded to `others` |
+| `src/store.ts` | `PgStore` (Bun.sql) and `MemoryStore`, one interface |
+| `src/collector.ts` | the collector: `urb events` → Postgres, every minute |
+| `config/init-database.sql` | the schema, applied by UIS (`uis configure postgresql --init-file`) |
+| `tools/fake-urb.ts` | stands in for `urb events` until it is released |
 | `src/index.ts` | the Bun entry point (port 3000) |
 | `src/*.test.ts` | `bun test` |
 | `Dockerfile` | `oven/bun`, runs as the non-root `bun` user |
-| `manifests/` | Deployment `fleet-web`, Service `fleet-service` (the first Service, which the platform routes to), and the `api-fleet` IngressRoute |
+| `manifests/` | Deployment `fleet-web`, Service `fleet-service` (the first Service, which the platform routes to), and the `api-fleet` IngressRoute. `collector.yaml` (`fleet-collector`) is not in the kustomization until its Secrets exist |
 | `.github/workflows/build-and-push.yaml` | builds `ghcr.io/terchris/urb-agents-console:<sha>-<time>` and commits the tag to `manifests/deployment.yaml` |
 | `docs/ai-developer/` | this folder. There is no second copy. |
 
@@ -73,8 +80,9 @@ authenticated or private endpoint behind `api-fleet`.** A browser will not send 
 ```bash
 bun install
 bun run dev          # hot-reloading server on :3000
-bun test
+bun test                     # the Postgres half runs when TEST_DATABASE_URL names a database it may wipe
 bun run typecheck
+DATABASE_URL=… URB_BIN=tools/fake-urb.ts bun src/collector.ts   # the collector against the fake urb
 ```
 
 Every push to `main` builds an image and commits a new tag to `manifests/`. The workflow writes to

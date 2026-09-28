@@ -30,4 +30,22 @@ repository. Newest entries go at the bottom of each section, and each one gives 
 
 ## Hono
 
-*(Entries start with phase 3, the API.)*
+- **2026-09-28: `@hono/zod-openapi` gives OpenAPI 3.1 from the code, and it works well.**
+  `createRoute({ request: { query }, responses })` plus `app.openapi(route, handler)`: the same
+  Zod schema validates the request, types `c.req.valid("query")`, and becomes the spec.
+  `app.doc31("/openapi.json", …)` serves **3.1** (use `doc`, not `doc31`, for 3.0), with
+  `nullable()` rendered as `type: ["string","null"]`. The output passed an independent 3.1
+  validator first time.
+- **2026-09-28: the default 400 is Zod's whole issue tree.** For a public API that's too much.
+  `new OpenAPIHono({ defaultHook })` replaces it for every route with one short sentence.
+- **2026-09-28: `.strict()` on a Zod object gives `additionalProperties: false` in the spec.**
+  It describes the response; it does not filter it. What's served is still whatever the handler
+  returns, so "no key outside the contract" is enforced by the store building `Event` field by
+  field, and by a test.
+- **2026-09-28: `app.request(path)` makes testing painless.** A Hono app is a `fetch` function,
+  so tests call it directly: no server, no port, no supertest. With the store behind an interface
+  (`MemoryStore` in tests), the API tests need no database.
+- **2026-09-28: `app.route("/v1", api)` mounts a sub-app, and the spec's paths stay relative.**
+  So `servers: [{ url: "/v1" }]` belongs in the `doc31` config.
+- **2026-09-28: CORS is one line** (`hono/cors`), applied to the sub-app with `api.use("*", …)`.
+  It covers `/v1/openapi.json` too, so a browser-based API viewer on another origin can read the spec.

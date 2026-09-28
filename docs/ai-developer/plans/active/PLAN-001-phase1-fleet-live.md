@@ -45,6 +45,7 @@ These are mine. Where Terje has to confirm, it says so.
 | Only publishable fields | The collector parses each row against an explicit field list, and **fields it does not know are dropped rather than stored**. If `urb events` ever adds a field, the field goes nowhere until this code names it (contract 3). |
 | Frontend | **Server-rendered Hono JSX** (`hono/jsx`), plus a small inline script that polls `/v1/events` every 30 s. One image, no build step, and it exercises the part of Hono Terje wants to trial. *Confirmed by Terje, 2026-09-28.* |
 | Retention | **90 days.** The collector deletes older rows once a day. *Confirmed by Terje, 2026-09-28.* |
+| API description | **OpenAPI 3.1** (Terje, 2026-09-28), served at `/v1/openapi.json`. The routes are written with `@hono/zod-openapi`: one Zod schema per request and response validates the query and *is* the spec (`doc31`). A test checks that `Event` is exactly the contract with `additionalProperties: false`, and the output passes an independent 3.1 validator. |
 | Real time | Polling, not SSE or WebSockets. The collector's one-minute cadence sets the latency, so push adds complexity without making anything fresher. |
 
 ## Schema
@@ -71,12 +72,12 @@ These are mine. Where Terje has to confirm, it says so.
 
 ### Tasks
 
-- [ ] 2.1 `src/collector.ts`: every 60 s, run `urb events --since <mark − 10 min> --json`, parse, insert, and move the mark to the newest `at`, in one transaction. The 10-minute overlap catches events GitHub reports late; the primary key makes the overlap free. On the first run the mark is `24h`.
-- [ ] 2.2 Failure: if `urb` exits non-zero or its output doesn't parse, log it, keep the mark, and try again on the next tick. The collector never exits over a bad run.
-- [ ] 2.3 Daily prune (retention)
-- [ ] 2.4 A fake `urb` (a script that prints fixture rows) for tests and local runs, selected with `URB_BIN`
+- [x] 2.1 `src/collector.ts`: every 60 s, run `urb events --since <mark − 10 min> --json`, parse, insert, and move the mark to the newest `at`, in one transaction. The 10-minute overlap catches events GitHub reports late; the primary key makes the overlap free. On the first run the mark is `24h`.
+- [x] 2.2 Failure: if `urb` exits non-zero or its output doesn't parse, log it, keep the mark, and try again on the next tick. The collector never exits over a bad run.
+- [x] 2.3 Daily prune (retention)
+- [x] 2.4 A fake `urb` (a script that prints fixture rows) for tests and local runs, selected with `URB_BIN`
 - [ ] 2.5 **Blocked on Terje.** The collector needs the Linux `urb` of the release `fleet/cli-version` routes, checked against `SHA256SUMS` (contract 2). But `terchris/urb-agents` is **private**, so its release assets are too. Baking `urb` into this image would publish it on ghcr.io, and CI would need a cross-repo token. The proposed alternative is an initContainer in `fleet-collector` that downloads the asset with the collector's own read-only bus token, checks `SHA256SUMS`, and hands the binary over through an `emptyDir`: nothing in the image, and no token in CI.
-- [ ] 2.6 `manifests/collector.yaml`: Deployment `fleet-collector`, `replicas: 1`, `strategy: Recreate`, command `bun run src/collector.ts`, pod label `app: fleet-collector` so `fleet-service` never selects it, and no Service. `DATABASE_URL` comes from the Secret `urb-agents-console-db`, and the bus token from its own Secret. Both are referenced by name only.
+- [x] 2.6 `manifests/collector.yaml`: Deployment `fleet-collector`, `replicas: 1`, `strategy: Recreate`, command `bun run src/collector.ts`, pod label `app: fleet-collector` so `fleet-service` never selects it, and no Service. It is **not in `kustomization.yaml` yet**: every push deploys to imac, and it cannot start there until its Secrets and `urb` exist. `DATABASE_URL` comes from the Secret `urb-agents-console-db`, and the bus token from its own Secret. Both are referenced by name only.
 
 ### Validation
 
@@ -88,11 +89,12 @@ Locally, against the fake `urb` and a local Postgres: rows arrive, re-runs add n
 
 ### Tasks
 
-- [ ] 3.1 `GET /v1/events?before=<iso>&limit=<n>`: newest first, `limit` defaults to 100 with a maximum of 500, and fields exactly as in the contract (`from_id` and `to_id` are served as `from` and `to`). Response: `{ schema: "urb-events/1", events, next }`, where `next` is the cursor for older events.
-- [ ] 3.2 `GET /v1/agents`: per id (allowlisted, plus `others`) over the last 24 h, the count of each kind and when it was last seen. Derived from `events` only.
-- [ ] 3.3 `Cache-Control: public, max-age=30` on both. Invalid query parameters return 400 with a short message, never a stack trace.
-- [ ] 3.4 Tests with `app.request()`, including a check that no response ever contains a key outside the contract.
-- [ ] 3.5 Tell `marketing`, the first consumer, on the bus when the shape is live.
+- [x] 3.1 `GET /v1/events?before=<iso>&limit=<n>`: newest first, `limit` defaults to 100 with a maximum of 500, and fields exactly as in the contract (`from_id` and `to_id` are served as `from` and `to`). Response: `{ schema: "urb-events/1", events, next }`. `next` is `<time>~<id>` for the next, older page, and `before` also takes a plain ISO time.
+- [x] 3.2 `GET /v1/agents`: per id (allowlisted, plus `others`) over the last 24 h, the count of each kind and when it was last seen. Derived from `events` only.
+- [x] 3.3 `Cache-Control: public, max-age=30` on both. Invalid query parameters return 400 with a short message, never a stack trace.
+- [x] 3.4 Tests with `app.request()`, including a check that no response ever contains a key outside the contract.
+- [x] 3.4b `GET /v1/openapi.json`: OpenAPI 3.1, validated by `@seriousme/openapi-schema-validator` (a one-off run, not a CI dependency)
+- [ ] 3.5 (phase 5, once it is live) Tell `marketing`, the first consumer, on the bus when the shape is live.
 
 ### Validation
 
