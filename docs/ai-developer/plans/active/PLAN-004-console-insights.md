@@ -42,4 +42,4 @@ Smaller things done along the way:
 
 - [x] Nothing beyond the contract's fields; only allowlisted ids and `others`
 - [x] Every value is reachable without hover (table cells, the summary, the histogram's labels)
-- [ ] Terje reviews it before it is pushed (pushing is publishing)
+- [x] Terje reviews it before it is pushed (pushing is publishing). Pushed on his word and live, 2026-09-28.

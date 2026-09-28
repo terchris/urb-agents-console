@@ -21,7 +21,7 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 
 | # | What | Why this one |
 |---|---|---|
-| **1** | [PLAN-004](../active/PLAN-004-console-insights.md): summary, inventory, active now, histogram, keys (ideas 1–5 from other consoles). **Built; awaiting Terje's review before push** | Terje asked for it; no change to `urb` needed |
+| **1** | [PLAN-004](../active/PLAN-004-console-insights.md): summary, inventory, active now, histogram, keys (ideas 1–5 from other consoles). **Live 2026-09-28** | Terje asked for it; no change to `urb` needed |
 | **2** | [PLAN-003](../active/PLAN-003-rhythm-view.md): the rhythm view and `/v1/activity`. **Live 2026-09-28** | Defined for phase 1 in the fleet's investigation (activity per hour) |
 | **3** | Two contract questions left on #1651: is a truncated window signalled, and which variable carries the token in a container | Only these can still change the collector |
 
