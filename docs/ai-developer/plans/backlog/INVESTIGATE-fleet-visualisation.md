@@ -109,5 +109,4 @@ investigation's phase 1.
 - **#1673:** purpose, task, context and refs. The maintainer evaluates, then Terje decides.
 - **Time to first reply** without a task hash: store what `urb stats --json` publishes as an
   aggregate, or wait for #1673?
-- **Public home:** the console is already public on imac's cluster through its wildcard tunnel.
-  Terje confirms whether that is where it should live.
+- ~~Public home~~: imac's cluster, `fleet.urbalurba.com` (Terje, 2026-09-28).

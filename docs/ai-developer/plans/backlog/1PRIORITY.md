@@ -33,7 +33,6 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 | **Purpose and structure on the bus** (a `purpose:` vocabulary, routine `context_id`, and `urb events` carrying keyed task/context/refs hashes). Proposed as Terje's wish, **for evaluation, not build** (#1673). It decides how far the page can show *how agents cooperate* | urb-agents-maintainer evaluates, then Terje decides | 2026-09-28 | views 2 and 3 of the page |
 | **A read-only bus token and `URB_EVENTS_KEY` (a stable secret, ≥16 chars, never rotated) as the Secret `urb-agents-console-bus`** | Terje | 2026-09-28 | the collector reading the bus |
 | **Postgres for the app** — `uis configure postgresql --app urb-agents-console --init-file config/init-database.sql`, with the URL as Secret `urb-agents-console-db` | tor-agent / imac | 2026-09-28 | storing events |
-| **Which cluster serves it publicly, and `fleet.` / `api-fleet.urbalurba.com` through the tunnel** | Terje | 2026-09-28 | being public |
 
 When this file's one-liner changes, refresh `fleet/status/urb-agents-console.md` with
 `urb publish-status` (do not write that file by hand).

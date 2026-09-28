@@ -23,6 +23,7 @@ it with `urb cat`). This file is what you need day to day.
 | Deployment | **ArgoCD**, from `manifests/`, on UIS |
 | Hostnames | `fleet.<domain>` is the frontend; `api-fleet.<domain>` is the public API. `<domain>` is `localhost` on a local cluster and, for example, `urbalurba.com` on imac's. |
 | API description | **The API is OpenAPI 3.1.** It is served at `api-fleet.<domain>/v1/openapi.json` and generated from the same Zod schemas that validate requests (`@hono/zod-openapi`, `doc31`), so the spec cannot drift from the code. A test checks that the `Event` schema is exactly the contract. |
+| Public home | **imac's cluster, as `fleet.urbalurba.com` and `api-fleet.urbalurba.com`** (Terje, 2026-09-28). Its wildcard tunnel serves the platform's routes, so **a push to `main` is live on the internet within minutes**. Build and look locally before pushing, and check the live URLs after. |
 | Public data | events with the model: time, what happened, sender, recipient, new state, provider, model. **Never** titles, bodies, task numbers or the subscription. |
 
 ## The design

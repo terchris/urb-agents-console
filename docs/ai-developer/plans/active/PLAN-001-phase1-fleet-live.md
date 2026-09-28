@@ -109,7 +109,7 @@ Locally, against the fake `urb` and a local Postgres: rows arrive, re-runs add n
 - [x] 4.1 Hono JSX page: the latest events as a timeline, one line each (time · from → to · kind · state · model), and an agent strip from `/v1/agents`
 - [x] 4.2 An inline script that polls every 30 s and prepends new rows. The page still works without JavaScript.
 - [x] 4.3 Light and dark, readable at phone width
-- [ ] 4.4 **Terje reads the page before it goes public (contract 5).** ⚠️ Pushing IS going public: imac's cluster already serves `fleet.urbalurba.com` and `api-fleet.urbalurba.com` through its wildcard tunnel (found 2026-09-28), so a push to `main` is live within minutes. Phase 4 stays unpushed until Terje has looked.
+- [x] 4.4 **Terje reads the page before it goes public (contract 5).** Reviewed; pushed on his word, 2026-09-28. ⚠️ Pushing IS going public: imac's cluster already serves `fleet.urbalurba.com` and `api-fleet.urbalurba.com` through its wildcard tunnel (found 2026-09-28), so a push to `main` is live within minutes. Phase 4 stays unpushed until Terje has looked.
 - [x] 4.5 `tools/seed.ts`: a few days of synthetic traffic in a local database, so the page can be seen before `urb events` exists
 
 ### Validation
@@ -128,7 +128,7 @@ Blocked on others; see 1PRIORITY.md.
 - [ ] 5.1b `fleet-web` gets the same `DATABASE_URL` from the same Secret
 - [ ] 5.2 The read-only bus token as a cluster Secret (Terje)
 - [x] 5.3 `urb events` shipped in cli-v0.5.48. Fitted to the real contract: the output is an object `{schema, since, until, events}`; there is a `by` field (who acted, set on replies; `from`/`to` are always the task's); model names include spaces and brackets; `until` is the mark; `--json` needs `URB_EVENTS_KEY`. Verified locally: one run against the real feed read 307 events from 24 hours with none dropped (local database only; nothing committed)
-- [ ] 5.4 Public hostnames through the tunnel (Terje decides the cluster and the domain)
+- [x] 5.4 Public hostnames: imac's cluster, `fleet.urbalurba.com` / `api-fleet.urbalurba.com`, through its wildcard tunnel (Terje, 2026-09-28)
 
 ### Validation
 

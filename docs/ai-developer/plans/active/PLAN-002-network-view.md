@@ -68,4 +68,4 @@ The embed renders in an iframe on another origin (done: a `file://` host page fr
 - [ ] Only allowlisted ids and `others` appear; nothing beyond the contract's fields
 - [ ] Works without JavaScript: selection and window are plain links
 - [ ] Every value in the network is also in the table view
-- [ ] Terje reviews it before it is pushed (pushing is publishing)
+- [x] Terje reviews it before it is pushed (pushing is publishing). Pushed on his word, 2026-09-28.
