@@ -50,4 +50,4 @@ The console reads marketing's public `agents.json` (#1687): its `named` list dec
 - [x] Nothing of marketing's is copied into this repo
 - [ ] Terje reviews it before it is pushed (pushing is publishing)
 - [ ] Tell marketing on the bus the day the collector runs (#1687)
-- [ ] An agent profile panel on `?agent=<id>` from marketing's `summary`, `does`, `skills`, `product` and `repository`, once she adds them to `agents.json` (#1689)
+- [x] An agent profile panel on `?agent=<id>` from marketing's `summary`, `does`, `skills`, `product`, `repository` and `checked` (#1689, live on her side 2026-09-28). Validated as plain text, with https links (a repository only on github.com), and linked back to her page. No panel for an agent without a page.

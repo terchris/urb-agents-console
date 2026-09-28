@@ -114,9 +114,9 @@ export const Focus: FC<{ laid: Laid; agent: string; href: Href; profile?: Profil
       : ls.map((l, i) => <>{i > 0 ? ", " : null}<a href={href({ agent: other(l) })}>{other(l)}</a> ({i === 0 ? plural(l.events, "event") : l.events})</>);
   return (
     <p class="focus">
-      {profile?.avatar ? <img class="face" src={profile.avatar} alt="" width="28" height="28" /> : null}
-      <b>{agent}</b>{profile?.role ? <span class="muted">, {profile.role},</span> : null} sends most to {list(out, (l) => l.to)}, and gets most from {list(inn, (l) => l.from)}.{" "}
-      {profile?.page ? <><a href={profile.page}>About {agent}</a> · </> : null}<a href={href({ agent: null })}>Show everyone</a>
+      {profile?.avatar && !profile.summary ? <img class="face" src={profile.avatar} alt="" width="28" height="28" /> : null}
+      <b>{agent}</b>{profile?.role && !profile.summary ? <span class="muted">, {profile.role},</span> : null} sends most to {list(out, (l) => l.to)}, and gets most from {list(inn, (l) => l.from)}.{" "}
+      {profile?.page && !profile.summary ? <><a href={profile.page}>About {agent}</a> · </> : null}<a href={href({ agent: null })}>Show everyone</a>
     </p>
   );
 };

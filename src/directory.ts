@@ -9,11 +9,39 @@
 export const DIRECTORY_URL = process.env.DIRECTORY_URL ?? "https://marketing.urbalurba.com/fleet/agents.json";
 export const DIRECTORY_SCHEMA = "marketing-agents/1";
 
-export type Profile = { id: string; role: string | null; page: string | null; avatar: string | null };
+export type Profile = {
+  id: string; role: string | null; page: string | null; avatar: string | null;
+  // marketing's description, as her agent pages show it (#1689); absent where she has none
+  summary?: string; does?: string[]; skills?: string[];
+  product?: { label: string; href: string }; repository?: string;
+  /** When the agent confirmed its page (YYYY-MM-DD). */
+  checked?: string;
+};
 export type Directory = { named: ReadonlySet<string>; profiles: ReadonlyMap<string, Profile> };
 
 const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const ROLE = /^[\p{L}\p{N} ,.'’&()-]{1,60}$/u;
+
+// Marketing's longer text: plain text only. It is rendered as text (escaped), so markup could not
+// run anyway; refusing '<' and control characters keeps anything odd out of the page entirely.
+const PLAIN = /^[^<>\p{Cc}]+$/u;
+function text(v: unknown, max: number): string | undefined {
+  return typeof v === "string" && v.length <= max && PLAIN.test(v) ? v : undefined;
+}
+function texts(v: unknown, maxItems: number, maxLen: number): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const ok = v.map((x) => text(x, maxLen)).filter((x): x is string => x !== undefined).slice(0, maxItems);
+  return ok.length ? ok : undefined;
+}
+function https(v: unknown, host?: string): string | undefined {
+  if (typeof v !== "string") return undefined;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" && (!host || u.host === host) ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function sameHostHttps(v: unknown, base: string): string | null {
   if (typeof v !== "string") return null;
@@ -36,12 +64,24 @@ export function parseDirectory(raw: unknown, base = DIRECTORY_URL): Directory {
   for (const a of Array.isArray(d.agents) ? d.agents : []) {
     const r = a as Record<string, unknown>;
     if (typeof r.id !== "string" || !named.has(r.id)) continue; // a profile is only for a named id
-    profiles.set(r.id, {
+    const product = r.product as { label?: unknown; href?: unknown } | undefined;
+    const productLabel = text(product?.label, 80), productHref = https(product?.href);
+    const p: Profile = {
       id: r.id,
       role: typeof r.role === "string" && ROLE.test(r.role) ? r.role : null,
       page: sameHostHttps(r.page, base),
       avatar: sameHostHttps(r.avatar, base),
-    });
+    };
+    const summary = text(r.summary, 800), does = texts(r.does, 10, 400), skills = texts(r.skills, 16, 40);
+    const repository = https(r.repository, "github.com");
+    const checked = typeof r.checked === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.checked) ? r.checked : undefined;
+    if (summary) p.summary = summary;
+    if (does) p.does = does;
+    if (skills) p.skills = skills;
+    if (productLabel && productHref) p.product = { label: productLabel, href: productHref };
+    if (repository) p.repository = repository;
+    if (checked) p.checked = checked;
+    profiles.set(r.id, p);
   }
   return { named, profiles };
 }

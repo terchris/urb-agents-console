@@ -200,3 +200,35 @@ export const AgentPicker: FC<{ window: string; agent?: string }> = ({ window, ag
     <noscript><button type="submit">Go</button></noscript>
   </form>
 );
+
+const checkedFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/**
+ * The followed agent's profile, in marketing's words (#1689): what its page on
+ * marketing.urbalurba.com says, linked back there. Agent cards are not shown here: they are
+ * written for the private bus, and come in phase 2, behind a login (Terje, 2026-09-29).
+ */
+export const ProfilePanel: FC<{ profile: Profile }> = ({ profile: p }) => (
+  <section class="profile-card" aria-labelledby="pf">
+    {p.avatar ? <img class="pf-face" src={p.avatar} alt="" width="72" height="72" /> : null}
+    <div class="pf-body">
+      <h2 id="pf" class="pf-name">{p.id}{p.role ? <span class="pf-role">{p.role}</span> : null}</h2>
+      {p.summary ? <p class="pf-summary">{p.summary}</p> : null}
+      {p.does ? (
+        <>
+          <h3 class="pf-h">What it does</h3>
+          <ul class="pf-does">{p.does.map((d) => <li>{d}</li>)}</ul>
+        </>
+      ) : null}
+      {p.skills ? <ul class="pf-skills" aria-label="Skills">{p.skills.map((k) => <li>{k}</li>)}</ul> : null}
+      <p class="pf-links">
+        {p.product ? <><a href={p.product.href}>{p.product.label}</a> · </> : null}
+        {p.repository ? <><a href={p.repository}>Source code</a> · </> : null}
+        {p.page ? <a href={p.page}>More about {p.id} on marketing.urbalurba.com</a> : null}
+      </p>
+      <p class="pf-src">
+        In the words of the marketing site{p.checked ? <>, checked by {p.id} on {checkedFmt.format(new Date(`${p.checked}T00:00:00Z`))}</> : null}.
+      </p>
+    </div>
+  </section>
+);

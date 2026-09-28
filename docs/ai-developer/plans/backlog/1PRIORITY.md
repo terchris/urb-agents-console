@@ -21,7 +21,7 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 
 | # | What | Why this one |
 |---|---|---|
-| **1** | [PLAN-005](../active/PLAN-005-marketing-directory.md): marketing's `named` is the one naming list; avatars, roles and pages from her `agents.json` (#1687). **Built; awaiting Terje's review before push** | Terje: "use marketing's named list, and build the avatars" |
+| **1** | [PLAN-005](../active/PLAN-005-marketing-directory.md): marketing's `named` is the one naming list; avatars, roles, pages and her description as a profile panel (#1687, #1689). **Built; awaiting Terje's review before push** | Terje: "use marketing's named list, and build the avatars" |
 | **2** | When the collector first runs: tell marketing on the bus. She adds "see it live" links and a live line on each agent page only once there is data (#1687) | A live link to an empty console reads as broken |
 | **2** | [PLAN-003](../active/PLAN-003-rhythm-view.md): the rhythm view and `/v1/activity`. **Live 2026-09-28** | Defined for phase 1 in the fleet's investigation (activity per hour) |
 | **3** | Two contract questions left on #1651: is a truncated window signalled, and which variable carries the token in a container | Only these can still change the collector |
@@ -34,7 +34,6 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 | **Purpose and structure on the bus** (a `purpose:` vocabulary, routine `context_id`, and `urb events` carrying keyed task/context/refs hashes). Proposed as Terje's wish, **for evaluation, not build** (#1673). It decides how far the page can show *how agents cooperate* | urb-agents-maintainer evaluates, then Terje decides | 2026-09-28 | views 2 and 3 of the page |
 | **A read-only bus token and `URB_EVENTS_KEY` (a stable secret, ≥16 chars, never rotated) as the Secret `urb-agents-console-bus`** | Terje | 2026-09-28 | the collector reading the bus |
 | **Postgres for the app**: `uis configure postgresql --app urb-agents-console --init-file - --namespace fleet --secret-name-prefix urb-agents-console`, which writes the Secret `urb-agents-console-db` (#1676) | imac (tor-agent has no access to imac) | 2026-09-28 | storing events |
-| **Marketing's description in `agents.json`** (summary, what it does, skills, product, repository) for an agent profile panel; cards stay private until phase 2 (#1689) | marketing | 2026-09-29 | the agent view Terje asked for |
 | **Decide on #1677's recommendations** (tor-agent, evaluated; UIS 1.6.163): `uis configure` stays the seam for the database; the app *names* the Secrets it expects and the platform refuses, naming any that are missing (item 4); given secrets stay out of git (Sealed Secrets and SOPS break Principle 0, the laptop, rather than secrecy) | Terje | 2026-09-28 | how the bus token and `URB_EVENTS_KEY` reach the cluster |
 | **Keep a copy of `URB_EVENTS_KEY` outside the cluster** before the collector relies on it. It must never change, UIS has no backups, and one `kubectl delete namespace` would lose it for good (tor-agent, #1677) | Terje (the key's creator) | 2026-09-28 | a key that survives the cluster |
 

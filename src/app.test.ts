@@ -235,9 +235,34 @@ test("with marketing's list read, agents show their avatar, role and page; one w
   expect(html).toContain('href="https://marketing.urbalurba.com/fleet/ops-dev/"');
   expect(html).not.toContain("avatars/terje.svg");
   const one = await (await app.request("/?agent=ops-dev")).text();
-  expect(one).toContain(">About ops-dev</a>");
+  expect(one).toContain(">About ops-dev</a>"); // no summary in this directory, so no panel: the sentence links instead
   const embed = await (await app.request("/embed/network")).text();
   expect(embed).toContain("avatars/ops-dev.svg");
+});
+
+test("following an agent with marketing's description opens with its profile panel", async () => {
+  const dir = new DirectoryCache(async () => parseDirectory({
+    schema: "marketing-agents/1",
+    named: ["atlas", "imac"],
+    agents: [{
+      id: "atlas", role: "the librarian", page: "https://marketing.urbalurba.com/fleet/atlas/", avatar: "https://marketing.urbalurba.com/avatars/atlas.svg",
+      summary: "Builds Atlas, an open library of Norwegian public data.", does: ["Publishes it through a public, versioned API"],
+      skills: ["TypeScript", "dbt"], product: { label: "atlas.sovereignsky.no", href: "https://atlas.sovereignsky.no/" },
+      repository: "https://github.com/terchris/atlas", checked: "2026-09-28",
+    }],
+  }, "https://marketing.urbalurba.com/fleet/agents.json"));
+  await dir.refresh();
+  const s = new MemoryStore();
+  await s.collect([ev("1", new Date().toISOString(), { kind: "opened", from: "atlas", to: "imac", by: null })], null);
+  const html = await (await createApp(s, undefined, dir).request("/?agent=atlas")).text();
+  expect(html).toContain('<section class="profile-card"');
+  expect(html).toContain("Builds Atlas, an open library of Norwegian public data.");
+  expect(html).toContain("<li>Publishes it through a public, versioned API</li>");
+  expect(html).toContain('<a href="https://atlas.sovereignsky.no/">atlas.sovereignsky.no</a>');
+  expect(html).toContain('<a href="https://github.com/terchris/atlas">Source code</a>');
+  expect(html).toContain("More about atlas on marketing.urbalurba.com");
+  expect(html).toMatch(/checked by atlas on 28 Sept?\.? 2026/);
+  expect((await (await createApp(s, undefined, dir).request("/?agent=imac")).text())).not.toContain('<section class="profile-card"'); // no page, no panel
 });
 
 test("the live partial is the fragment only, never cached", async () => {

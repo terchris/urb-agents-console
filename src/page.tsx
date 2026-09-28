@@ -16,7 +16,7 @@ import type { Event } from "./event";
 import type { Window } from "./api";
 import type { Laid } from "./network";
 import { Focus, NetworkSvg, NetworkTable, type Href } from "./network-view";
-import { activeNow, AgentPicker, Histogram, Inventory, Summary, summary } from "./insight-view";
+import { activeNow, AgentPicker, Histogram, Inventory, ProfilePanel, Summary, summary } from "./insight-view";
 import { RHYTHM_CSS, RhythmView, type Rhythm } from "./rhythm-view";
 import type { Profile } from "./directory";
 import type { AgentSummary } from "./store";
@@ -144,6 +144,7 @@ export const Live: FC<LiveProps> = (p) => {
           ? <>Last event {ago(newest.at, p.now)} · {p.total} {p.total === 1 ? "event" : "events"} in the last {WINDOW_LABEL[p.window]}</>
           : "Waiting for the first event"}
       </p>
+      {!p.paged && p.agent && p.profiles.get(p.agent)?.summary ? <ProfilePanel profile={p.profiles.get(p.agent)!} /> : null}
       {lines.length ? <Summary lines={lines} /> : null}
       {p.paged ? null : (
         <section aria-labelledby="nw" class="network">
@@ -436,6 +437,20 @@ a{color:var(--accent)}
 .net .node.idle image{opacity:.45;filter:grayscale(1)}
 .net a:focus-visible .ring{stroke:var(--accent);stroke-width:3.5}
 .face{width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:.4rem}
+.profile-card{display:flex;gap:1rem;align-items:flex-start;margin:1rem 0 0;padding:1rem 1.1rem;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.pf-face{width:72px;height:72px;border-radius:50%;flex-shrink:0}
+.pf-body{min-width:0}
+.pf-name{margin:0;font-size:1.35rem;text-transform:none;letter-spacing:0;color:var(--fg)}
+.pf-role{display:inline-block;margin-left:.5rem;font-size:.95rem;font-weight:400;color:var(--muted)}
+.pf-summary{margin:.35rem 0 0;max-width:44rem}
+.pf-h{margin:.8rem 0 .2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pf-does{margin:0;padding-left:1.1rem;max-width:44rem}
+.pf-does li{margin:.15rem 0}
+.pf-skills{list-style:none;padding:0;margin:.7rem 0 0;display:flex;flex-wrap:wrap;gap:.3rem}
+.pf-skills li{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:.05rem .55rem;color:var(--muted)}
+.pf-links{margin:.7rem 0 0;font-size:.9rem}
+.pf-src{margin:.3rem 0 0;font-size:.8rem;color:var(--muted)}
+@media (max-width:34rem){.profile-card{flex-direction:column}.pf-face{width:56px;height:56px}}
 table.inv .who-cell{display:flex;align-items:center;gap:.45rem}
 table.inv .av{width:24px;height:24px;border-radius:50%;flex-shrink:0}
 table.inv .av.none{display:inline-block;background:var(--line)}

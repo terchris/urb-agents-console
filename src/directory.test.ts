@@ -34,6 +34,32 @@ test("an id that is not shaped like a bus id is not named", () => {
   expect([...parseDirectory({ ...good, named: ["ops-dev", "Not An Id", 7] }, BASE).named]).toEqual(["ops-dev"]);
 });
 
+test("marketing's description is kept as plain text, and a link must be https (a repository on github.com)", () => {
+  const d = parseDirectory({ ...good, agents: [{
+    ...good.agents[0],
+    summary: "Runs the noticeboard — the whole fleet talks through it.",
+    does: ["Brings every new agent in", "<script>x</script>", 42],
+    skills: ["routing work", "C#"],
+    product: { label: "atlas.sovereignsky.no", href: "https://atlas.sovereignsky.no/" },
+    repository: "https://gitlab.example/x",
+    checked: "2026-09-28",
+  }] }, BASE);
+  expect(d.profiles.get("ops-dev")).toMatchObject({
+    summary: "Runs the noticeboard — the whole fleet talks through it.",
+    does: ["Brings every new agent in"],
+    skills: ["routing work", "C#"],
+    product: { label: "atlas.sovereignsky.no", href: "https://atlas.sovereignsky.no/" },
+    checked: "2026-09-28",
+  });
+  expect(d.profiles.get("ops-dev")!.repository).toBeUndefined();
+});
+
+test("absent means absent", () => {
+  const p = parseDirectory(good, BASE).profiles.get("ops-dev")!;
+  expect(p.summary).toBeUndefined();
+  expect(p.product).toBeUndefined();
+});
+
 test("sameList ignores order", () => {
   expect(sameList(new Set(["a", "b"]), new Set(["b", "a"]))).toBe(true);
   expect(sameList(new Set(["a"]), new Set(["a", "b"]))).toBe(false);
