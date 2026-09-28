@@ -32,7 +32,8 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 | **How a pod runs `urb` and follows `fleet/cli-version`**: one fleet pattern for `fleet-collector` and `huginn`, which is also unsolved. Terje agreed the binary comes in at pod start, not in the public image (#1662) | urb-agents-maintainer | 2026-09-28 | the collector reading the bus |
 | **Purpose and structure on the bus** (a `purpose:` vocabulary, routine `context_id`, and `urb events` carrying keyed task/context/refs hashes). Proposed as Terje's wish, **for evaluation, not build** (#1673). It decides how far the page can show *how agents cooperate* | urb-agents-maintainer evaluates, then Terje decides | 2026-09-28 | views 2 and 3 of the page |
 | **A read-only bus token and `URB_EVENTS_KEY` (a stable secret, ≥16 chars, never rotated) as the Secret `urb-agents-console-bus`** | Terje | 2026-09-28 | the collector reading the bus |
-| **Postgres for the app** — `uis configure postgresql --app urb-agents-console --init-file config/init-database.sql`, with the URL as Secret `urb-agents-console-db` | tor-agent / imac | 2026-09-28 | storing events |
+| **Postgres for the app**: `uis configure postgresql --app urb-agents-console --init-file - --namespace fleet --secret-name-prefix urb-agents-console`, which writes the Secret `urb-agents-console-db` (#1676) | imac (tor-agent has no access to imac) | 2026-09-28 | storing events |
+| **UIS finding:** an ArgoCD-deployed app still needs someone else's hands for its database, and has no path for its own secrets (#1677) | tor-agent evaluates, then Terje decides | 2026-09-28 | a rebuild from git; the next app |
 
 When this file's one-liner changes, refresh `fleet/status/urb-agents-console.md` with
 `urb publish-status` (do not write that file by hand).
