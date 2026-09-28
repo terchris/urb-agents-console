@@ -82,4 +82,8 @@ repository. Newest entries go at the bottom of each section, and each one gives 
   carries a CSS variable per element (`--w` for a link's opacity).
 - **2026-09-28: attribute values are escaped for you.** `data-pair={"ops-dev>imac"}` renders as
   `ops-dev&gt;imac`, so tests match on the escaped form, while the browser's `dataset` gives back `>`.
+- **2026-09-28: a GET form is the progressive way to filter.** The agent picker is
+  `<form method="get">` with a `<select>`, which works with no JavaScript. The script only adds
+  `requestSubmit()` on change. Hono reads it with `c.req.query()` like any link, but an empty
+  option arrives as `agent=`, so treat `""` as "not set".
 

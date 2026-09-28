@@ -16,6 +16,7 @@ import type { Event } from "./event";
 import type { Window } from "./api";
 import type { Laid } from "./network";
 import { Focus, NetworkSvg, NetworkTable, type Href } from "./network-view";
+import { activeNow, AgentPicker, Histogram, Inventory, Summary, summary } from "./insight-view";
 import { RHYTHM_CSS, RhythmView, type Rhythm } from "./rhythm-view";
 import type { AgentSummary } from "./store";
 import { ZONE } from "./time";
@@ -78,7 +79,7 @@ const Row: FC<{ e: Event }> = ({ e }) => (
   </li>
 );
 
-const Timeline: FC<{ events: Event[]; now: number; next: string | null; href: Href; agent?: string }> = ({ events, now, next, href, agent }) => {
+const Timeline: FC<{ events: Event[]; now: number; next: string | null; href: Href; agent?: string; rhythm: Rhythm; paged: boolean }> = ({ events, now, next, href, agent, rhythm, paged }) => {
   const days: [string, Event[]][] = [];
   for (const e of events) {
     const label = dayLabel(e.at, now);
@@ -88,12 +89,13 @@ const Timeline: FC<{ events: Event[]; now: number; next: string | null; href: Hr
   }
   return (
     <section aria-labelledby="tl">
-      <h2 id="tl">Timeline{agent ? <small>{agent}'s events</small> : null}</h2>
+      <h2 id="tl">Timeline{agent ? <small>{agent}'s events</small> : null}<small class="kbd-hint">j / k to step through</small></h2>
+      <Histogram rhythm={rhythm} events={events} agent={agent} href={href} paged={paged} />
       <ul class="legend" aria-label="Kinds of event">
         <li class="k-opened"><span class="dot" />opened</li><li class="k-moved"><span class="dot" />moved</li>
         <li class="k-replied"><span class="dot" />replied</li><li class="k-closed"><span class="dot" />closed</li>
       </ul>
-      {events.length === 0 ? <p class="empty">No events yet.</p> : null}
+      {events.length === 0 ? <p class="empty">{paged ? "No events before this time." : "No events yet."}</p> : null}
       {days.map(([label, evs]) => (
         <>
           <h3 class="day">{label}</h3>
@@ -104,27 +106,6 @@ const Timeline: FC<{ events: Event[]; now: number; next: string | null; href: Hr
     </section>
   );
 };
-
-const Agents: FC<{ agents: AgentSummary[]; now: number; window: Window; href: Href }> = ({ agents, now, window, href }) => (
-  <section aria-labelledby="ag">
-    <h2 id="ag">Agents <small>last {WINDOW_LABEL[window]}</small></h2>
-    {agents.length === 0 ? <p class="empty">Nobody has been active in this window.</p> : (
-      <ul class="agents">
-        {agents.map((a) => (
-          <li class={a.id === OTHERS ? "agent others" : "agent"}>
-            <a class="name" href={href({ agent: a.id })}>{a.id}</a>
-            <span class="seen">{ago(a.lastSeen, now)}</span>
-            <span class="counts">
-              <span title="tasks it opened">{a.opened} opened</span>
-              <span title="tasks opened to it">{a.received} received</span>
-              <span title="replies it wrote">{a.replied} {a.replied === 1 ? "reply" : "replies"}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    )}
-  </section>
-);
 
 export const WINDOW_LABEL: Record<Window, string> = { "24h": "24 hours", "7d": "7 days", "30d": "30 days" };
 
@@ -151,6 +132,7 @@ export type LiveProps = View & {
 export const Live: FC<LiveProps> = (p) => {
   const href: Href = (q) => viewHref(p, q);
   const newest = p.events[0];
+  const lines = p.paged ? [] : summary({ agents: p.agents, network: p.network, total: p.total, windowLabel: WINDOW_LABEL[p.window], now: p.now, agent: p.agent });
   return (
     <div id="live" data-paged={p.paged ? "1" : "0"}>
       <p class="pulse" role="status">
@@ -159,18 +141,19 @@ export const Live: FC<LiveProps> = (p) => {
           ? <>Last event {ago(newest.at, p.now)} · {p.total} {p.total === 1 ? "event" : "events"} in the last {WINDOW_LABEL[p.window]}</>
           : "Waiting for the first event"}
       </p>
+      {lines.length ? <Summary lines={lines} /> : null}
       {p.paged ? null : (
         <section aria-labelledby="nw" class="network">
           <h2 id="nw">Who sends work to whom <small>last {WINDOW_LABEL[p.window]}</small></h2>
           <p class="how">An arrow runs from the agent that opened a task to the agent it was for, and its width is how much has happened on their tasks. Pick an agent to follow its part.</p>
           {p.agent ? <Focus laid={p.network} agent={p.agent} href={href} /> : null}
-          <NetworkSvg laid={p.network} agent={p.agent} href={href} />
+          <NetworkSvg laid={p.network} agent={p.agent} href={href} active={activeNow(p.agents, p.now)} />
           <NetworkTable laid={p.network} agent={p.agent} />
         </section>
       )}
       {p.paged ? null : <RhythmView r={p.rhythm} agent={p.agent} href={href} />}
-      {p.paged ? null : <Agents agents={p.agents} now={p.now} window={p.window} href={href} />}
-      <Timeline events={p.events} now={p.now} next={p.next} href={href} agent={p.agent} />
+      {p.paged ? null : <Inventory agents={p.agents} network={p.network} rhythm={p.rhythm} now={p.now} windowLabel={WINDOW_LABEL[p.window]} agent={p.agent} href={href} />}
+      <Timeline events={p.events} now={p.now} next={p.next} href={href} agent={p.agent} rhythm={p.rhythm} paged={p.paged} />
     </div>
   );
 };
@@ -182,15 +165,15 @@ const Filters: FC<View> = (v) => (
         <a href={viewHref(v, { window: w })} aria-current={w === v.window ? "true" : undefined}>{w}</a>
       ))}
     </span>
-    {v.agent ? (
-      <span class="chip">Following <b>{v.agent}</b> <a href={viewHref(v, { agent: null })} aria-label="Stop following">✕</a></span>
-    ) : <span class="hint">Pick an agent in the network to follow it</span>}
+    <AgentPicker window={v.window} agent={v.agent} />
+    {v.agent ? <a class="clear" href={viewHref(v, { agent: null })} id="stop-following">Stop following</a> : null}
+    <button type="button" class="keys-btn" id="keys-btn" aria-controls="keys" aria-keyshortcuts="?">Keys</button>
   </nav>
 );
 
 // The network on a bare page, for another site to put in an iframe (the marketing site first).
 // Its links open the full page at the top level. It refreshes itself every minute.
-export const Embed: FC<{ laid: Laid; window: Window; total: number }> = (p) => (
+export const Embed: FC<{ laid: Laid; window: Window; total: number; active?: Set<string> }> = (p) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -203,7 +186,7 @@ export const Embed: FC<{ laid: Laid; window: Window; total: number }> = (p) => (
         <a href={viewHref({ window: p.window }, {})} target="_top">Who sends work to whom</a> in the Urbalurba agent fleet ·{" "}
         {p.total} {p.total === 1 ? "event" : "events"} in the last {WINDOW_LABEL[p.window]}
       </p>
-      <NetworkSvg laid={p.laid} href={(q) => viewHref({ window: p.window }, q)} target="_top" />
+      <NetworkSvg laid={p.laid} href={(q) => viewHref({ window: p.window }, q)} target="_top" active={p.active} />
       <div id="tip" role="tooltip" hidden />
       <script dangerouslySetInnerHTML={{ __html: EMBED_SCRIPT }} />
     </body>
@@ -270,6 +253,17 @@ export const Page: FC<LiveProps & { note?: string }> = (p) => (
         </footer>
       </main>
       <div id="tip" role="tooltip" hidden />
+      <dialog id="keys" aria-labelledby="keys-title">
+        <h2 id="keys-title">Keyboard</h2>
+        <dl>
+          <dt><kbd>/</kbd></dt><dd>choose an agent to follow</dd>
+          <dt><kbd>Esc</kbd></dt><dd>stop following</dd>
+          <dt><kbd>[</kbd> <kbd>]</kbd></dt><dd>shorter or longer time window</dd>
+          <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>next or previous event in the timeline</dd>
+          <dt><kbd>?</kbd></dt><dd>this list</dd>
+        </dl>
+        <form method="dialog"><button>Close</button></form>
+      </dialog>
       <script dangerouslySetInnerHTML={{ __html: SCRIPT }} />
     </body>
   </html>
@@ -282,6 +276,7 @@ export const SCRIPT = `(() => {
   async function tick() {
     const live = document.getElementById("live");
     if (!live || live.dataset.paged === "1" || document.hidden) return;
+    if (document.activeElement && document.activeElement.classList.contains("ev")) return; // the reader is stepping with j/k
     try {
       const r = await fetch("/partials/live" + location.search, { headers: { accept: "text/html" } });
       if (!r.ok) return;
@@ -289,7 +284,7 @@ export const SCRIPT = `(() => {
       t.innerHTML = await r.text();
       const fresh = t.content.getElementById("live");
       if (!fresh) return;
-      const open = live.querySelector("details.twin")?.open;
+      const open = [...live.querySelectorAll("details")].map((d) => d.open);
       for (const e of fresh.querySelectorAll(".ev")) {
         if (seen.has(e.dataset.id)) continue;
         seen.add(e.dataset.id);
@@ -297,12 +292,74 @@ export const SCRIPT = `(() => {
         const pair = e.dataset.pair && fresh.querySelector('.link[data-pair="' + CSS.escape(e.dataset.pair) + '"]');
         if (pair) pair.classList.add("pulse");
       }
-      if (open) fresh.querySelector("details.twin")?.setAttribute("open", "");
+      fresh.querySelectorAll("details").forEach((d, i) => { if (open[i]) d.setAttribute("open", ""); });
       live.replaceWith(fresh);
+      if (sortBy) sortTable(sortBy, sortDir);
     } catch {}
   }
   setInterval(tick, 30000);
   document.addEventListener("visibilitychange", tick);
+
+  // The agent table sorts by any column with a button; the choice survives the refresh.
+  let sortBy = null, sortDir = -1;
+  function sortTable(key, dir) {
+    const table = document.querySelector("table.inv");
+    if (!table) return;
+    const body = table.tBodies[0];
+    const rows = [...body.rows];
+    rows.sort((a, b) => {
+      const x = a.dataset[key], y = b.dataset[key];
+      const c = key === "name" ? x.localeCompare(y) : Number(x) - Number(y);
+      return c * dir || a.dataset.name.localeCompare(b.dataset.name);
+    });
+    for (const r of rows) body.appendChild(r);
+    for (const th of table.tHead.rows[0].cells) {
+      const btn = th.querySelector("button");
+      if (btn) th.setAttribute("aria-sort", btn.dataset.sort === key ? (dir < 0 ? "descending" : "ascending") : "none");
+    }
+  }
+  document.addEventListener("click", (ev) => {
+    const btn = ev.target.closest && ev.target.closest("table.inv th button[data-sort]");
+    if (btn) {
+      const key = btn.dataset.sort;
+      sortDir = sortBy === key ? -sortDir : key === "name" ? 1 : -1;
+      sortBy = key;
+      sortTable(sortBy, sortDir);
+    }
+    if (ev.target.id === "keys-btn") document.getElementById("keys").showModal();
+  });
+
+  // Choosing an agent in the picker follows it straight away.
+  document.addEventListener("change", (ev) => {
+    if (ev.target.id === "agent-pick") ev.target.form.requestSubmit();
+  });
+
+  // Keys, as listed under "Keys". Never while typing in a field, and never with a modifier.
+  document.addEventListener("keydown", (ev) => {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const t = ev.target;
+    if (t.closest && t.closest("input, select, textarea, dialog")) {
+      if (ev.key === "Escape" && t.id === "agent-pick") t.blur();
+      return;
+    }
+    const windows = [...document.querySelectorAll(".seg a")];
+    const current = windows.findIndex((a) => a.hasAttribute("aria-current"));
+    if (ev.key === "/") { ev.preventDefault(); document.getElementById("agent-pick")?.focus(); }
+    else if (ev.key === "?") { ev.preventDefault(); document.getElementById("keys").showModal(); }
+    else if (ev.key === "Escape") { const s = document.getElementById("stop-following"); if (s) location.href = s.href; }
+    else if (ev.key === "[" && current > 0) location.href = windows[current - 1].href;
+    else if (ev.key === "]" && current >= 0 && current < windows.length - 1) location.href = windows[current + 1].href;
+    else if (ev.key === "j" || ev.key === "k") {
+      const evs = [...document.querySelectorAll("#live .ev")];
+      if (!evs.length) return;
+      ev.preventDefault();
+      const at = evs.indexOf(document.activeElement);
+      const next = evs[Math.max(0, Math.min(evs.length - 1, at < 0 ? 0 : at + (ev.key === "j" ? 1 : -1)))];
+      next.tabIndex = -1;
+      next.focus();
+      next.scrollIntoView({ block: "nearest" });
+    }
+  });
 
   const tip = document.getElementById("tip");
   const show = (el, x, y) => {
@@ -384,20 +441,57 @@ a{color:var(--accent)}
 @keyframes pulse-head{0%{fill:var(--accent);opacity:1}100%{}}
 @media (prefers-reduced-motion:reduce){.live-dot,.net .link.pulse .edge,.net .link.pulse .head,.fresh{animation:none}}
 #tip{position:fixed;z-index:10;max-width:22rem;pointer-events:none;background:var(--fg);color:var(--bg);font-size:.8rem;line-height:1.35;padding:.35rem .55rem;border-radius:6px}
+.summary{margin:.5rem 0 0;font-size:1.05rem;max-width:46rem}
+.pick label{display:inline-flex;align-items:center;gap:.4rem;font-size:.9rem;color:var(--muted)}
+.pick select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.2rem .4rem}
+.clear{font-size:.85rem}
+.keys-btn{margin-left:auto;font:inherit;font-size:.8rem;color:var(--muted);background:none;border:1px solid var(--line);border-radius:6px;padding:.1rem .5rem;cursor:pointer}
+dialog#keys{border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg);padding:1rem 1.25rem;max-width:22rem}
+dialog#keys::backdrop{background:rgb(0 0 0 / .3)}
+dialog#keys h2{margin:0 0 .5rem}
+dialog#keys dl{display:grid;grid-template-columns:auto 1fr;gap:.35rem .8rem;margin:0 0 .75rem}
+dialog#keys dd{margin:0}
+kbd{font:600 .8rem ui-monospace,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 .3rem;background:var(--bg)}
+.kbd-hint{font-size:.75rem}
+.ev:focus{outline:2px solid var(--accent);outline-offset:-2px}
+.histo{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));align-items:end;gap:2px;height:44px;margin:.25rem 0 .75rem;border-bottom:1px solid var(--line)}
+.histo a{display:flex;align-items:flex-end;height:100%}
+.histo i{display:block;width:100%;background:var(--link);border-radius:2px 2px 0 0;min-height:0}
+.histo a.on i{background:var(--accent)}
+.histo a:hover i,.histo a:focus-visible i{background:var(--fg)}
+table.inv{border-collapse:collapse;width:100%;font-size:.9rem}
+table.inv th,table.inv td{text-align:left;padding:.3rem .5rem .3rem 0;border-bottom:1px solid var(--line);vertical-align:middle}
+table.inv thead th{color:var(--muted);font-weight:600;font-size:.8rem;white-space:nowrap}
+table.inv thead button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+table.inv thead th[aria-sort="descending"] button::after{content:" ↓"}
+table.inv thead th[aria-sort="ascending"] button::after{content:" ↑"}
+table.inv .n{text-align:right;font-variant-numeric:tabular-nums}
+table.inv tbody th{font-weight:600;white-space:nowrap}
+table.inv tbody th a{color:var(--fg);text-decoration:none}
+table.inv tbody th a:hover{text-decoration:underline}
+table.inv tr.sel th a{color:var(--accent)}
+table.inv tr.others th a{font-style:italic;font-weight:500;color:var(--muted)}
+table.inv .seen{white-space:nowrap;color:var(--muted)}
+table.inv .seen b{color:var(--replied);font-weight:600}
+table.inv .c-models{color:var(--muted);font-size:.8rem;white-space:nowrap}
+table.inv .c-models .more{color:var(--accent)}
+.now{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--replied);margin-right:.45rem;vertical-align:middle;animation:beat 2.4s infinite}
+.now.off{background:transparent;animation:none}
+.spark{display:block;overflow:visible}
+.spark polyline{fill:none;stroke:var(--link);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.spark circle{fill:var(--accent)}
+.net .node.active .dot{stroke:var(--replied);stroke-width:3;animation:beat-ring 2.4s infinite}
+@keyframes beat-ring{0%,100%{stroke-opacity:1}50%{stroke-opacity:.25}}
+@media (prefers-reduced-motion:reduce){.now,.net .node.active .dot{animation:none}}
+@media (max-width:40rem){table.inv .c-models,table.inv .c-recv{display:none}}
+@media (max-width:30rem){table.inv .c-spark{display:none}table.inv{font-size:.8rem}table.inv th,table.inv td{padding-right:.35rem}table.inv tbody th{white-space:normal;overflow-wrap:anywhere}}
+.inv-wrap{overflow-x:auto;max-width:100%}
 .twin{margin:.5rem 0 0;font-size:.9rem}
 .twin summary{cursor:pointer;color:var(--accent)}
 .twin table{border-collapse:collapse;margin-top:.5rem;width:100%;max-width:36rem}
 .twin th,.twin td{text-align:left;padding:.2rem .6rem .2rem 0;border-bottom:1px solid var(--line)}
 .twin th{color:var(--muted);font-weight:600}
 .twin .n{text-align:right;font-variant-numeric:tabular-nums}
-.agents{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(12.5rem,100%),1fr));gap:.5rem}
-.agent{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.55rem .7rem;display:grid;grid-template-columns:1fr auto;gap:.1rem .5rem}
-.agent .name{font-weight:600;overflow-wrap:anywhere;color:var(--fg);text-decoration:none}
-.agent .name:hover{text-decoration:underline}
-.agent .seen{color:var(--muted);font-size:.8rem;white-space:nowrap}
-.agent .counts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.2rem .7rem;color:var(--muted);font-size:.8rem}
-.agent.others{border-style:dashed}
-.agent.others .name{font-style:italic;font-weight:500}
 .legend{list-style:none;padding:0;margin:0 0 .25rem;display:flex;flex-wrap:wrap;gap:.25rem 1rem;color:var(--muted);font-size:.85rem}
 .legend li{display:flex;align-items:center;gap:.35rem}
 .events{list-style:none;padding:0;margin:0}

@@ -15,6 +15,9 @@ export type AgentSummary = {
   received: number; // tasks opened to it
   replied: number; // replies it wrote
   lastSeen: string; // the latest event it took part in, in any role
+  // The models it wrote with, most used first (at most three): the model on a task it opened, or
+  // on a reply it wrote. Only where the bus recorded one.
+  models: { name: string; events: number }[];
 };
 
 // The network over a window: one link per ordered pair (the task's sender → its recipient), and
@@ -134,12 +137,20 @@ export class PgStore implements WritableStore {
              count(*) FILTER (WHERE role = 'by' AND kind = 'replied')::int  AS replied,
              max(at) AS last_seen
       FROM roles GROUP BY agent ORDER BY max(at) DESC, agent COLLATE "C"`;
+    const models = await this.sql`
+      SELECT writer, model, count(*)::int AS n FROM (
+        SELECT from_id AS writer, model FROM events WHERE at >= ${since} AND kind = 'opened' AND model IS NOT NULL
+        UNION ALL
+        SELECT by_id, model FROM events WHERE at >= ${since} AND kind = 'replied' AND by_id IS NOT NULL AND model IS NOT NULL
+      ) w GROUP BY writer, model`;
+    const top = topModels(models.map((r: Record<string, unknown>) => ({ writer: r.writer as string, model: r.model as string, n: r.n as number })));
     return rows.map((r: Record<string, unknown>) => ({
       id: r.agent as string,
       opened: r.opened as number,
       received: r.received as number,
       replied: r.replied as number,
       lastSeen: (r.last_seen as Date).toISOString(),
+      models: top.get(r.agent as string) ?? [],
     }));
   }
 
@@ -177,6 +188,13 @@ export class PgStore implements WritableStore {
     const rows = await this.sql`DELETE FROM events WHERE at < ${before} RETURNING id`;
     return rows.length;
   }
+}
+
+function topModels(rows: { writer: string; model: string; n: number }[]): Map<string, AgentSummary["models"]> {
+  const by = new Map<string, AgentSummary["models"]>();
+  for (const r of rows) by.set(r.writer, [...(by.get(r.writer) ?? []), { name: r.model, events: r.n }]);
+  for (const [k, ms] of by) by.set(k, ms.sort((a, b) => b.events - a.events || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)).slice(0, 3));
+  return by;
 }
 
 function shapeActivity(count: number, total: { b: number; n: number }[], per: { agent: string; b: number; n: number }[]): Activity {
@@ -264,7 +282,7 @@ export class MemoryStore implements WritableStore {
   async agents(since: Date): Promise<AgentSummary[]> {
     const by = new Map<string, AgentSummary>();
     const get = (id: string, at: string) => {
-      const a = by.get(id) ?? { id, opened: 0, received: 0, replied: 0, lastSeen: at };
+      const a = by.get(id) ?? { id, opened: 0, received: 0, replied: 0, lastSeen: at, models: [] };
       if (at > a.lastSeen) a.lastSeen = at;
       by.set(id, a);
       return a;
@@ -282,6 +300,18 @@ export class MemoryStore implements WritableStore {
         if (e.kind === "replied") actor.replied++;
       }
     }
+    const written = new Map<string, { writer: string; model: string; n: number }>();
+    for (const e of this.events) {
+      if (e.at < since.toISOString() || e.model === null) continue;
+      const writer = e.kind === "opened" ? e.from : e.kind === "replied" ? e.by : null;
+      if (writer === null) continue;
+      const k = `${writer}\u0000${e.model}`;
+      const w = written.get(k) ?? { writer, model: e.model, n: 0 };
+      w.n++;
+      written.set(k, w);
+    }
+    const top = topModels([...written.values()]);
+    for (const a of by.values()) a.models = top.get(a.id) ?? [];
     return [...by.values()].sort((a, b) => cmp(b.lastSeen, a.lastSeen) || cmp(a.id, b.id));
   }
 

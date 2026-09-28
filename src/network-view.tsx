@@ -20,7 +20,7 @@ function anchor(angle: number): "start" | "middle" | "end" {
   return Math.abs(c) < 0.2 ? "middle" : c > 0 ? "start" : "end";
 }
 
-export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: string }> = ({ laid, agent, href, target }) => {
+export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: string; active?: Set<string> }> = ({ laid, agent, href, target, active }) => {
   const { box, nodes, links } = laid;
   const touching = (l: Link) => agent !== undefined && (l.from === agent || l.to === agent);
   const neighbours = new Set(links.filter(touching).flatMap((l) => [l.from, l.to]));
@@ -51,10 +51,11 @@ export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: s
       <g class="nodes">
         {nodes.map((n) => {
           const cls = ["node", n.events === 0 ? "idle" : "", n.id === OTHERS ? "others" : "",
-            n.id === agent ? "sel" : "", agent && n.id !== agent && neighbours.has(n.id) ? "nb" : ""].filter(Boolean).join(" ");
+            n.id === agent ? "sel" : "", agent && n.id !== agent && neighbours.has(n.id) ? "nb" : "",
+            active?.has(n.id) ? "active" : ""].filter(Boolean).join(" ");
           const lx = n.x + Math.cos(n.angle) * (n.r + 8);
           const ly = n.y + Math.sin(n.angle) * (n.r + 8);
-          const tip = `${n.id}: ${n.events === 0 ? "no events" : plural(n.events, "event")} in this window`;
+          const tip = `${n.id}: ${n.events === 0 ? "no events" : plural(n.events, "event")} in this window${active?.has(n.id) ? " · active now" : ""}`;
           return (
             <a href={href({ agent: n.id === agent ? null : n.id })} target={target} class={cls} data-tip={tip} aria-label={tip}>
               <circle class="hit" cx={n.x} cy={n.y} r={Math.max(n.r + 6, 14)} />

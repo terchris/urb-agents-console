@@ -8,6 +8,7 @@
 import { Hono } from "hono";
 import { ALLOWLIST, OTHERS } from "./allowlist";
 import { createApi, cursorOf, parseCursor, WINDOWS, type Window } from "./api";
+import { activeNow } from "./insight-view";
 import { layout } from "./network";
 import { bucketsFor } from "./time";
 import { Embed, Live, PAGE_SIZE, Page, type LiveProps } from "./page";
@@ -27,7 +28,7 @@ export function createApp(store: Store, note?: string) {
   // than failing. Same-origin /v1 is the same public feed as api-fleet, so the page needs no CORS.
   const view = (q: (k: string) => string | undefined) => {
     const w = q("window") ?? "24h";
-    const agent = q("agent");
+    const agent = q("agent") || undefined; // the picker's "everyone" sends an empty value
     const before = q("before");
     const cursor = before ? parseCursor(before) : undefined;
     const ok = w in WINDOWS && (agent === undefined || agent === OTHERS || ALLOWLIST.has(agent)) && cursor !== null;
@@ -43,7 +44,7 @@ export function createApp(store: Store, note?: string) {
       v.before ? Promise.resolve([]) : store.agents(since),
       v.before ? Promise.resolve(0) : store.count(since),
       v.before ? Promise.resolve({ nodes: [], links: [] }) : store.network(since),
-      v.before ? Promise.resolve({ total: [], agents: [] }) : store.activity({ origin: starts[0]!, size, count: starts.length }),
+      store.activity({ origin: starts[0]!, size, count: starts.length }), // the timeline's histogram needs it on older pages too
     ]);
     const last = events[events.length - 1];
     return {
@@ -71,9 +72,9 @@ export function createApp(store: Store, note?: string) {
     const v = view((k) => c.req.query(k));
     if (!v || v.agent || v.before) return c.text("the embed takes ?window= only", 400);
     const since = new Date(Date.now() - WINDOWS[v.window]);
-    const [net, total] = await Promise.all([store.network(since), store.count(since)]);
+    const [net, total, agents] = await Promise.all([store.network(since), store.count(since), store.agents(since)]);
     c.header("Cache-Control", "public, max-age=60");
-    return c.html("<!doctype html>" + (<Embed laid={layout(net)} window={v.window} total={total} />));
+    return c.html("<!doctype html>" + (<Embed laid={layout(net)} window={v.window} total={total} active={activeNow(agents, Date.now())} />));
   });
 
   return app;

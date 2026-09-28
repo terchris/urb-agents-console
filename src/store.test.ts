@@ -74,10 +74,10 @@ for (const [name, make] of stores) {
       ], null);
       const a = await s.agents(new Date("2026-09-28T00:00:00Z"));
       expect(a).toEqual([
-        { id: "atlas", opened: 0, received: 0, replied: 0, lastSeen: "2026-09-28T07:07:00.000Z" },
-        { id: "imac", opened: 0, received: 0, replied: 0, lastSeen: "2026-09-28T07:07:00.000Z" },
-        { id: "marketing", opened: 0, received: 1, replied: 1, lastSeen: "2026-09-28T07:06:00.000Z" },
-        { id: "ops-dev", opened: 1, received: 0, replied: 0, lastSeen: "2026-09-28T07:06:00.000Z" },
+        { id: "atlas", opened: 0, received: 0, replied: 0, lastSeen: "2026-09-28T07:07:00.000Z", models: [] },
+        { id: "imac", opened: 0, received: 0, replied: 0, lastSeen: "2026-09-28T07:07:00.000Z", models: [] },
+        { id: "marketing", opened: 0, received: 1, replied: 1, lastSeen: "2026-09-28T07:06:00.000Z", models: [{ name: "claude-opus-5-5", events: 1 }] },
+        { id: "ops-dev", opened: 1, received: 0, replied: 0, lastSeen: "2026-09-28T07:06:00.000Z", models: [{ name: "claude-opus-5-5", events: 1 }] },
       ]);
       expect(await s.count(new Date("2026-09-28T00:00:00Z"))).toBe(4);
     });

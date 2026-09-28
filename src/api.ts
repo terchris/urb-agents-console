@@ -49,6 +49,8 @@ const AgentSummary = z
     opened: z.number().int().openapi({ description: "Tasks it opened" }),
     received: z.number().int().openapi({ description: "Tasks opened to it" }),
     replied: z.number().int().openapi({ description: "Replies it wrote" }),
+    models: z.array(z.object({ name: z.string(), events: z.number().int() }).strict())
+      .openapi({ description: "The models it wrote with (a task it opened, a reply it wrote), most used first, at most three. Only where the bus recorded one." }),
     lastSeen: z.string().datetime().openapi({ description: "The latest event it took part in, in any role" }),
   })
   .strict()

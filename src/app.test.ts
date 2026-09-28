@@ -108,7 +108,7 @@ test("agents counts the last 24 hours", async () => {
   expect(b.schema).toBe("urb-events/1");
   expect(b.agents.map((a: { id: string }) => a.id).sort()).toEqual(["marketing", "ops-dev"]);
   expect(b.agents.find((a: { id: string }) => a.id === "marketing")).toEqual(expect.objectContaining({ received: 1, opened: 0, replied: 0 }));
-  expect(Object.keys(b.agents[0]).sort()).toEqual(["id", "lastSeen", "opened", "received", "replied"]);
+  expect(Object.keys(b.agents[0]).sort()).toEqual(["id", "lastSeen", "models", "opened", "received", "replied"]);
 });
 
 test("the API describes itself as OpenAPI 3.1, and the Event schema is exactly the contract", async () => {
@@ -142,7 +142,7 @@ test("the page renders the events and the agents, with others marked as such", a
   expect(html).toContain('A task from <span class="who">imac</span> to <span class="who">ops-dev</span> moved to <b class="state">working</b>');
   expect(html).toContain('was closed as <b class="state">completed</b>');
   expect(html).toContain('<span class="who">ops-dev</span> replied to <span class="who">imac</span>');
-  expect(html).toContain('<li class="agent others">');
+  expect(html).toContain('<tr class="others" data-name="others"');
   expect(html).not.toContain("Older events"); // one page only
 });
 
@@ -156,7 +156,7 @@ test("the page pages back without JavaScript, and a bad cursor goes home", async
   const base = Date.parse("2026-09-28T07:00:00Z");
   const app = await withEvents(Array.from({ length: 120 }, (_, i) => ev(`e${String(i).padStart(3, "0")}`, new Date(base + i * 60_000).toISOString())));
   const first = await (await app.request("/")).text();
-  const next = first.match(/href="\/\?before=([^"]+)"/)?.[1];
+  const next = first.match(/href="\/\?before=([^"]+)">Older events/)?.[1];
   expect(next).toBeDefined();
   const older = await (await app.request(`/?before=${next}`)).text();
   expect((older.match(/class="ev /g) ?? []).length).toBe(20);
@@ -180,7 +180,8 @@ test("the page leads with the network, and following an agent emphasises its lin
   expect(one).toContain('<svg class="net has-sel"');
   expect(one).toMatch(/class="link hot" data-pair="ops-dev&gt;imac"/);
   expect(one).toMatch(/class="link" data-pair="atlas&gt;tor-agent"/);
-  expect(one).toContain("Following <b>imac</b>");
+  expect(one).toContain('<option value="imac" selected="">imac</option>');
+  expect(one).toContain('id="stop-following"');
   expect((await app.request("/?agent=rc-eval")).status).toBe(302);
   expect((await app.request("/?window=1y")).status).toBe(302);
 });
@@ -194,6 +195,26 @@ test("the embed is the network alone, its links open the full page at the top", 
   expect(html).toContain('target="_top"');
   expect(html).not.toContain('id="live"');
   expect((await app.request("/embed/network?agent=imac")).status).toBe(400);
+});
+
+test("the insights: a summary from counts, an inventory with models and who is active, a histogram that jumps", async () => {
+  const now = Date.now();
+  const app = await withEvents([
+    ev("1", new Date(now - 2 * 60_000).toISOString(), { kind: "opened", from: "ops-dev", to: "imac", by: null, model: "Opus 5.5 (1M context)" }),
+    ev("2", new Date(now - 3 * 3_600_000).toISOString(), { kind: "replied", from: "ops-dev", to: "imac", by: "imac", model: "Sonnet 5" }),
+  ]);
+  const html = await (await app.request("/")).text();
+  expect(html).toContain("In the last 24 hours: 2 events between 2 agents.");
+  expect(html).toContain("Who opened the most tasks: ops-dev (1); received the most: imac (1); wrote the most replies: imac (1).");
+  expect(html).toContain("Active in the last 10 minutes: imac, ops-dev.");
+  expect(html).toMatch(/<tr data-name="ops-dev" data-events="2"/);
+  expect(html).toContain("Opus 5.5 (1M context)");
+  expect(html).toContain('<svg class="spark"');
+  expect(html).toMatch(/class="node active"/);
+  expect((html.match(/<nav class="histo"[\s\S]*?<\/nav>/)?.[0].match(/<a /g) ?? []).length).toBe(24);
+  const one = await (await app.request("/?agent=imac")).text();
+  expect(one).toContain("imac took part in 2 events in the last 24 hours; received 1, most from ops-dev (1); wrote 1 reply.");
+  expect((await app.request("/?agent=")).status).toBe(200); // the picker's "everyone"
 });
 
 test("the live partial is the fragment only, never cached", async () => {
