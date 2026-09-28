@@ -1,4 +1,4 @@
-# Builds the console image and points manifests/deployment.yaml at it; ArgoCD does the rest.
+# Builds the console image and points manifests/deployment.yaml and collector.yaml at it; ArgoCD does the rest.
 # The dev-templates pipeline (uis.sovereignsky.no → Developing → CI/CD Pipeline), with one build
 # instead of two: the app is built inside the Dockerfile only.
 #
@@ -64,13 +64,14 @@ jobs:
           docker push "$IMAGE"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
-      - name: Point the manifest at the new image
+      - name: Point the manifests at the new image
         run: |
-          sed -i "s|image: ghcr.io/${GITHUB_REPOSITORY,,}:.*|image: ${IMAGE}|" manifests/deployment.yaml
-          git diff --quiet manifests/deployment.yaml && { echo "manifest unchanged"; exit 0; }
+          # Both roles run the same image: the web app and the collector.
+          sed -i "s|image: ghcr.io/${GITHUB_REPOSITORY,,}:.*|image: ${IMAGE}|" manifests/deployment.yaml manifests/collector.yaml
+          git diff --quiet manifests/ && { echo "manifests unchanged"; exit 0; }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifests/deployment.yaml
+          git add manifests/deployment.yaml manifests/collector.yaml
           git commit -m "[ci-skip] deploy ${IMAGE_TAG}"
           git pull --rebase origin main
           git push origin HEAD:main

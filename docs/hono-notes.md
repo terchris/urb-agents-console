@@ -23,6 +23,10 @@ repository. Newest entries go at the bottom of each section, and each one gives 
   `config/init-database.sql`.
 - **2026-09-28: `tsc` is not bundled.** `bun run typecheck` needs `typescript` in devDependencies
   and a `bun install` first. `bun test` runs the TypeScript without type-checking it.
+- **2026-09-28: `Bun.spawn` does not see `process.env` changes made at runtime.** A child started
+  after `process.env.X = "1"` did not get `X`, so a test expecting a failing child got a succeeding one. Pass
+  `env: { ...process.env }` explicitly. It also has a `timeout` option, which kills the child;
+  `proc.signalCode` then says so.
 
 ## Hono
 

@@ -1,0 +1,52 @@
+# The collector: the same image as fleet-web, a different command. The only part of the console
+# that reads the bus (src/collector.ts).
+#
+# NOT YET IN kustomization.yaml, on purpose. Every push to main deploys to imac's cluster, and this
+# Deployment cannot start there yet. It waits on three things (PLAN-001 phase 5):
+#   - the Secret urb-agents-console-db (DATABASE_URL), from `uis configure postgresql`;
+#   - the read-only bus token as a Secret (Terje). The name and key below are placeholders until
+#     urb-agents-maintainer says which variable `urb` reads in a container (#1651, question 5);
+#   - how `urb` itself gets into the pod (PLAN-001 2.5, Terje). Until then URB_BIN points at a
+#     binary that does not exist, and each tick logs "collect failed; mark kept".
+#
+# Exactly one replica, and Recreate, so two collectors never run side by side. Two would be
+# harmless to the rows (the primary key), but not to the fleet's GitHub rate limit.
+# The pod label is app: fleet-collector, not app: fleet, so fleet-service never routes to it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet-collector
+  labels:
+    app: fleet-collector
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fleet-collector
+  template:
+    metadata:
+      labels:
+        app: fleet-collector
+    spec:
+      containers:
+        - name: collector
+          image: ghcr.io/terchris/urb-agents-console:ca23d5d-20260928075456
+          command: ["bun", "run", "src/collector.ts"]
+          env:
+            - name: COLLECT_INTERVAL_SECONDS
+              value: "60"
+            - name: RETENTION_DAYS
+              value: "90"
+            - name: URB_BIN
+              value: /urb/urb
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: urb-agents-console-db, key: DATABASE_URL }
+            - name: GH_TOKEN # placeholder: see the header
+              valueFrom:
+                secretKeyRef: { name: urb-agents-console-bus, key: token }
+          resources:
+            requests: { cpu: "10m", memory: "48Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }
