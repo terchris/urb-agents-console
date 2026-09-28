@@ -27,6 +27,13 @@ spec:
           image: ghcr.io/terchris/urb-agents-console:33f20fe-20260928194603
           ports:
             - containerPort: 3000
+          env:
+            # The database, from the Secret `uis configure postgresql --namespace fleet
+            # --secret-name-prefix urb-agents-console` writes. Optional: without it the web app runs
+            # and says no events are collected. A Secret created later is read when the pod restarts.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: urb-agents-console-db, key: DATABASE_URL, optional: true }
           resources:
             requests: { cpu: "20m", memory: "48Mi" }
             limits: { cpu: "300m", memory: "192Mi" }
