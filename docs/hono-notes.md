@@ -89,4 +89,8 @@ repository. Newest entries go at the bottom of each section, and each one gives 
   `<form method="get">` with a `<select>`, which works with no JavaScript. The script only adds
   `requestSubmit()` on change. Hono reads it with `c.req.query()` like any link, but an empty
   option arrives as `agent=`, so treat `""` as "not set".
+- **2026-09-29: two drawings beat one squeezed one.** The network is drawn twice by the same
+  component: a wide layout with labels for a computer, and a compact square with no labels for a
+  phone. CSS shows one. Server-rendered JSX makes this cheap: it is one more call with another
+  layout, with no client-side resize logic.
 

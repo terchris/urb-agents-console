@@ -10,7 +10,7 @@ import { named, OTHERS } from "./allowlist";
 import { createApi, cursorOf, parseCursor, WINDOWS, type Window } from "./api";
 import { DirectoryCache } from "./directory";
 import { activeNow } from "./insight-view";
-import { layout } from "./network";
+import { BOX_COMPACT, layout } from "./network";
 import { bucketsFor } from "./time";
 import { Embed, Live, PAGE_SIZE, Page, type LiveProps } from "./page";
 import { MemoryStore, PgStore, type Cursor, type Store } from "./store";
@@ -53,7 +53,7 @@ export function createApp(store: Store, note?: string, dir: DirectoryCache = dir
     ]);
     const last = events[events.length - 1];
     return {
-      window: v.window, agent: v.agent, events, agents, total, network: layout(net, undefined, avatars()), now, profiles: dir.profiles(),
+      window: v.window, agent: v.agent, events, agents, total, network: layout(net, undefined, avatars()), networkCompact: layout(net, BOX_COMPACT, avatars(), 13), now, profiles: dir.profiles(),
       rhythm: { ...act, window: v.window, starts, size },
       next: events.length === PAGE_SIZE && last ? cursorOf(last) : null, paged: !!v.before,
     };
@@ -79,7 +79,7 @@ export function createApp(store: Store, note?: string, dir: DirectoryCache = dir
     const since = new Date(Date.now() - WINDOWS[v.window]);
     const [net, total, agents] = await Promise.all([store.network(since), store.count(since), store.agents(since)]);
     c.header("Cache-Control", "public, max-age=60");
-    return c.html("<!doctype html>" + (<Embed laid={layout(net, undefined, avatars())} window={v.window} total={total} active={activeNow(agents, Date.now())} profiles={dir.profiles()} />));
+    return c.html("<!doctype html>" + (<Embed laid={layout(net, undefined, avatars())} laidCompact={layout(net, BOX_COMPACT, avatars(), 13)} window={v.window} total={total} active={activeNow(agents, Date.now())} profiles={dir.profiles()} />));
   });
 
   return app;

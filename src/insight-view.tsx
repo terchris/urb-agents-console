@@ -73,18 +73,25 @@ export function summary({ agents, network, total, windowLabel, now, agent }: Sum
 }
 
 export const Summary: FC<{ lines: string[] }> = ({ lines }) => (
-  <p class="summary">{lines.map((l, i) => <>{i ? " " : null}{l}</>)}</p>
+  <p class="summary digest">{lines.map((l, i) => <>{i ? " " : null}{l}</>)}</p>
 );
 
 /** A polyline over the counts, with the latest point marked. */
-export const Sparkline: FC<{ counts: number[] }> = ({ counts }) => {
-  const w = 96, h = 20, max = Math.max(1, ...counts), n = counts.length;
+/** A polyline over the counts. `fill`: stretch to the container's width (the stat tiles). */
+export const Sparkline: FC<{ counts: number[]; fill?: boolean }> = ({ counts, fill }) => {
+  const w = fill ? 240 : 96, h = fill ? 30 : 20, max = Math.max(1, ...counts), n = counts.length;
   if (n === 0) return <span class="spark none" />;
   const pts = counts.map((c, i) => [n === 1 ? w : (i * w) / (n - 1), h - 2 - (c / max) * (h - 4)] as const);
   const [lx, ly] = pts[pts.length - 1]!;
-  return (
+  const line = pts.map(([x, y]) => `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`).join(" ");
+  return fill ? (
+    <svg class="spark fill" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
+      <polygon class="area" points={`0,${h} ${line} ${w},${h}`} />
+      <polyline points={line} vector-effect="non-scaling-stroke" />
+    </svg>
+  ) : (
     <svg class="spark" viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden="true">
-      <polyline points={pts.map(([x, y]) => `${Math.round(x * 10) / 10},${Math.round(y * 10) / 10}`).join(" ")} />
+      <polyline points={line} />
       <circle cx={lx} cy={ly} r="2.5" />
     </svg>
   );
@@ -106,8 +113,8 @@ export const Inventory: FC<{ agents: AgentSummary[]; network: Laid; rhythm: Rhyt
     const rows = [...agents].sort((a, b) => (events.get(b.id) ?? 0) - (events.get(a.id) ?? 0) || a.id.localeCompare(b.id));
     const zeros = rhythm.total.map(() => 0);
     return (
-      <section aria-labelledby="ag">
-        <h2 id="ag">Agents <small>last {windowLabel} · select a column to sort</small></h2>
+      <section aria-labelledby="ag" class="card">
+        <div class="card-head"><h2 id="ag">Agents</h2><span class="sub">last {windowLabel}<span class="inv-hint"> · select a column to sort</span></span></div>
         {rows.length === 0 ? <p class="empty">Nobody has been active in this window.</p> : (
           <div class="inv-wrap"><table class="inv" data-sortable>
             <thead>
@@ -141,14 +148,14 @@ export const Inventory: FC<{ agents: AgentSummary[]; network: Laid; rhythm: Rhyt
                     </span>
                   </th>
                   <td class="c-spark"><Sparkline counts={counts.get(a.id) ?? zeros} /></td>
-                  <td class="n">{events.get(a.id) ?? 0}</td>
-                  <td class="n">{a.opened}</td>
-                  <td class="n c-recv">{a.received}</td>
-                  <td class="n">{a.replied}</td>
+                  <td class="n" data-label="Events">{events.get(a.id) ?? 0}</td>
+                  <td class="n" data-label="Opened">{a.opened}</td>
+                  <td class="n c-recv" data-label="Received">{a.received}</td>
+                  <td class="n" data-label="Replies">{a.replied}</td>
                   <td class="c-models">{a.models.length
                     ? <span data-tip={a.models.map((m) => `${m.name} (${m.events})`).join(" · ")}>{a.models[0]!.name}{a.models.length > 1 ? <span class="more"> +{a.models.length - 1}</span> : null}</span>
                     : <span class="muted">—</span>}</td>
-                  <td class="n seen">{active.has(a.id) ? <b>active</b> : ago(a.lastSeen, now)}</td>
+                  <td class="n seen" data-label="Last seen">{active.has(a.id) ? <b>active</b> : ago(a.lastSeen, now)}</td>
                 </tr>
               ))}
             </tbody>

@@ -25,7 +25,9 @@ export function layoutOrder(allow: ReadonlySet<string> = named()): string[] {
 export type Point = { x: number; y: number };
 export type Box = { width: number; height: number; cx: number; cy: number; radius: number };
 
-export const BOX: Box = { width: 760, height: 520, cx: 380, cy: 260, radius: 175 };
+export const BOX: Box = { width: 760, height: 500, cx: 380, cy: 250, radius: 196 };
+/** For a phone: a square drawing with no labels (network-view), so the circle can fill it. */
+export const BOX_COMPACT: Box = { width: 400, height: 400, cx: 200, cy: 200, radius: 172 };
 
 export function positions(ids: string[], box: Box = BOX): Map<string, Point & { angle: number }> {
   const out = new Map<string, Point & { angle: number }>();
@@ -100,7 +102,8 @@ export type Laid = {
 /** An agent drawn with an avatar is never smaller than this, so the picture can be seen. */
 export const AVATAR_MIN_R = 11;
 
-export function layout(net: Network, box: Box = BOX, avatars: ReadonlySet<string> = new Set()): Laid {
+/** `minR`: no active node drawn smaller than this (the phone drawing puts initials inside). */
+export function layout(net: Network, box: Box = BOX, avatars: ReadonlySet<string> = new Set(), minR = 0): Laid {
   const ids = layoutOrder();
   const pos = positions(ids, box);
   const events = new Map(net.nodes.map((n) => [n.id, n.events]));
@@ -109,7 +112,8 @@ export function layout(net: Network, box: Box = BOX, avatars: ReadonlySet<string
     const p = pos.get(id)!;
     const e = events.get(id) ?? 0;
     const r = nodeRadius(e, maxNode);
-    return { id, x: round(p.x), y: round(p.y), angle: p.angle, r: avatars.has(id) ? Math.max(r, e ? AVATAR_MIN_R : 8) : r, events: e };
+    const shown = avatars.has(id) ? Math.max(r, e ? AVATAR_MIN_R : 8) : r;
+    return { id, x: round(p.x), y: round(p.y), angle: p.angle, r: Math.max(shown, e ? minR : Math.min(minR, 8)), events: e };
   });
   const r = new Map(nodes.map((n) => [n.id, n]));
   const drawable = net.links.filter((l) => l.from !== l.to && r.has(l.from) && r.has(l.to));

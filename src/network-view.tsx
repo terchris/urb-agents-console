@@ -21,21 +21,23 @@ function anchor(angle: number): "start" | "middle" | "end" {
   return Math.abs(c) < 0.2 ? "middle" : c > 0 ? "start" : "end";
 }
 
-export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: string; active?: Set<string>; profiles?: ReadonlyMap<string, Profile> }> =
-  ({ laid, agent, href, target, active, profiles }) => {
+/** `compact`: the phone drawing. Labels sit inside the circle, so long ids fit a narrow screen. */
+export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: string; active?: Set<string>; profiles?: ReadonlyMap<string, Profile>; compact?: boolean }> =
+  ({ laid, agent, href, target, active, profiles, compact }) => {
+  const pre = compact ? "c" : "w"; // clip-path ids must be unique on a page that draws both
   const { box, nodes, links } = laid;
   const touching = (l: Link) => agent !== undefined && (l.from === agent || l.to === agent);
   const neighbours = new Set(links.filter(touching).flatMap((l) => [l.from, l.to]));
   const top = [...links].sort((a, b) => b.events - a.events).slice(0, 3);
   return (
     <svg
-      class={agent ? "net has-sel" : "net"}
+      class={`net ${compact ? "net-compact" : "net-wide"}${agent ? " has-sel" : ""}`}
       viewBox={`0 0 ${box.width} ${box.height}`}
       role="img"
-      aria-labelledby="net-title net-desc"
+      aria-labelledby={`${pre}-net-title ${pre}-net-desc`}
     >
-      <title id="net-title">Who sends work to whom</title>
-      <desc id="net-desc">
+      <title id={`${pre}-net-title`}>Who sends work to whom</title>
+      <desc id={`${pre}-net-desc`}>
         {links.length === 0
           ? "No tasks between agents in this window."
           : `${plural(links.length, "connection")}. Busiest: ${top.map(linkText).join("; ")}. The table below lists every connection.`}
@@ -57,6 +59,7 @@ export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: s
             active?.has(n.id) ? "active" : ""].filter(Boolean).join(" ");
           const lx = n.x + Math.cos(n.angle) * (n.r + 8);
           const ly = n.y + Math.sin(n.angle) * (n.r + 8);
+          const initials = n.id === OTHERS ? "…" : n.id.split("-").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
           const p = profiles?.get(n.id);
           const tip = `${n.id}${p?.role ? ` (${p.role})` : ""}: ${n.events === 0 ? "no events" : plural(n.events, "event")} in this window${active?.has(n.id) ? " · active now" : ""}`;
           return (
@@ -64,16 +67,16 @@ export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: s
               <circle class="hit" cx={n.x} cy={n.y} r={Math.max(n.r + 6, 14)} />
               {p?.avatar ? (
                 <>
-                  <clipPath id={`av-${n.id}`}><circle cx={n.x} cy={n.y} r={n.r} /></clipPath>
+                  <clipPath id={`${pre}-av-${n.id}`}><circle cx={n.x} cy={n.y} r={n.r} /></clipPath>
                   <circle class="dot pic" cx={n.x} cy={n.y} r={n.r} />
                   <image href={p.avatar} x={n.x - n.r} y={n.y - n.r} width={n.r * 2} height={n.r * 2}
-                    clip-path={`url(#av-${n.id})`} preserveAspectRatio="xMidYMid slice" />
+                    clip-path={`url(#${pre}-av-${n.id})`} preserveAspectRatio="xMidYMid slice" />
                   <circle class="ring" cx={n.x} cy={n.y} r={n.r} />
                 </>
               ) : <circle class="dot" cx={n.x} cy={n.y} r={n.r} />}
-              <text x={Math.round(lx * 10) / 10} y={Math.round(ly * 10) / 10} text-anchor={anchor(n.angle)} dominant-baseline="middle">
-                {n.id}
-              </text>
+              {compact
+                ? (p?.avatar ? null : <text class="ini" x={n.x} y={n.y} text-anchor="middle" dominant-baseline="central">{initials}</text>)
+                : <text x={Math.round(lx * 10) / 10} y={Math.round(ly * 10) / 10} text-anchor={anchor(n.angle)} dominant-baseline="middle">{n.id}</text>}
             </a>
           );
         })}
@@ -81,6 +84,25 @@ export const NetworkSvg: FC<{ laid: Laid; agent?: string; href: Href; target?: s
     </svg>
   );
 };
+
+/** The phone's companion to the drawing: the busiest connections, readable at any width. */
+export const TopPairs: FC<{ laid: Laid; agent?: string; profiles: ReadonlyMap<string, Profile>; face: FC<{ id: string | null; profiles: ReadonlyMap<string, Profile>; size: number }> }> =
+  ({ laid, agent, profiles, face: Face }) => {
+    const rows = [...laid.links].filter((l) => !agent || l.from === agent || l.to === agent).sort((a, b) => b.events - a.events).slice(0, 6);
+    const max = Math.max(1, ...rows.map((l) => l.events));
+    if (rows.length === 0) return null;
+    return (
+      <ol class="pairs" aria-label="Busiest connections">
+        {rows.map((l) => (
+          <li>
+            <span class="p-who"><Face id={l.from} profiles={profiles} size={22} /><span>{l.from}</span><span class="arrow" aria-label="to">→</span><Face id={l.to} profiles={profiles} size={22} /><span>{l.to}</span></span>
+            <span class="p-bar"><i style={`width:${Math.round((100 * l.events) / max)}%`} /></span>
+            <span class="p-n">{l.events}</span>
+          </li>
+        ))}
+      </ol>
+    );
+  };
 
 /** The table twin: every connection, and each agent's tasks to itself, with the same numbers. */
 export const NetworkTable: FC<{ laid: Laid; agent?: string }> = ({ laid, agent }) => {

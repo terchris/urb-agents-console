@@ -174,11 +174,12 @@ test("the page leads with the network, and following an agent emphasises its lin
     ev("2", new Date(now - 50_000).toISOString(), { kind: "opened", from: "atlas", to: "tor-agent", by: null }),
   ]);
   const all = await (await app.request("/")).text();
-  expect(all).toContain('<svg class="net"');
+  expect(all).toContain('<svg class="net net-wide"');
+  expect(all).toContain('<svg class="net net-compact"'); // the phone drawing
   expect(all).toContain('data-pair="ops-dev&gt;imac"');
   expect(all).toContain("Show as a table (2 connections)");
   const one = await (await app.request("/?agent=imac")).text();
-  expect(one).toContain('<svg class="net has-sel"');
+  expect(one).toContain('<svg class="net net-wide has-sel"');
   expect(one).toMatch(/class="link hot" data-pair="ops-dev&gt;imac"/);
   expect(one).toMatch(/class="link" data-pair="atlas&gt;tor-agent"/);
   expect(one).toContain('<option value="imac" selected="">imac</option>');
@@ -192,7 +193,7 @@ test("the embed is the network alone, its links open the full page at the top", 
   const r = await app.request("/embed/network?window=7d");
   expect(r.status).toBe(200);
   const html = await r.text();
-  expect(html).toContain('<svg class="net"');
+  expect(html).toContain('<svg class="net net-wide"');
   expect(html).toContain('target="_top"');
   expect(html).not.toContain('id="live"');
   expect((await app.request("/embed/network?agent=imac")).status).toBe(400);

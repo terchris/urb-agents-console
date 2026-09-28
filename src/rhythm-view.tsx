@@ -48,8 +48,8 @@ export const RhythmView: FC<{ r: Rhythm; agent?: string; href: Href }> = ({ r, a
   const peak = r.total.indexOf(maxTotal);
   const quiet = [...named(), OTHERS].filter((id) => !r.agents.some((a) => a.id === id));
   return (
-    <section aria-labelledby="rh" class="rhythm">
-      <h2 id="rh">When the fleet works <small>per {unit}, last {r.window === "24h" ? "24 hours" : r.window === "7d" ? "7 days" : "30 days"}</small></h2>
+    <section aria-labelledby="rh" class="card rhythm">
+      <div class="card-head"><h2 id="rh">When the fleet works</h2><span class="sub">per {unit}, last {r.window === "24h" ? "24 hours" : r.window === "7d" ? "7 days" : "30 days"}</span></div>
       <p class="how">
         Each row is an agent and each column one {unit}; darker means more events it took part in. The bars on top are the whole fleet.
         {maxTotal > 0 ? <> The busiest {unit} was {span(r.starts[peak]!, r.size, r.window)}, with {plural(maxTotal, "event")}.</> : null}
@@ -107,24 +107,24 @@ export const RhythmView: FC<{ r: Rhythm; agent?: string; href: Href }> = ({ r, a
 // towards the surface). Dark: the anchor flips, 600/500/400/300/150, so near zero recedes towards
 // the dark surface and the busiest is brightest.
 export const RHYTHM_CSS = `
-:root{--h0:#ece9e1;--h1:#b7d3f6;--h2:#86b6ef;--h3:#3987e5;--h4:#1c5cab;--h5:#0d366b}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--h0:#24262d;--h1:#184f95;--h2:#256abf;--h3:#3987e5;--h4:#6da7ec;--h5:#b7d3f6}}
-:root[data-theme="dark"]{--h0:#24262d;--h1:#184f95;--h2:#256abf;--h3:#3987e5;--h4:#6da7ec;--h5:#b7d3f6}
+:root{--h0:#EEEEF1;--h1:#b7d3f6;--h2:#86b6ef;--h3:#3987e5;--h4:#1c5cab;--h5:#0d366b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--h0:#1F1F26;--h1:#184f95;--h2:#256abf;--h3:#3987e5;--h4:#6da7ec;--h5:#b7d3f6}}
+:root[data-theme="dark"]{--h0:#1F1F26;--h1:#184f95;--h2:#256abf;--h3:#3987e5;--h4:#6da7ec;--h5:#b7d3f6}
 .rh{display:grid;gap:3px;margin:.5rem 0 0}
 .rh-row{display:grid;grid-template-columns:10rem 1fr;align-items:center;gap:.5rem}
 .rh-row.dim{opacity:.35}
 .rh-row.sel .rh-name{color:var(--accent)}
-.rh-name{font-size:.85rem;font-weight:600;color:var(--fg);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rh-name{font-size:.84rem;font-weight:600;color:var(--ink);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 a.rh-name:hover{text-decoration:underline}
 .rh-name.others{font-style:italic;font-weight:500;color:var(--muted)}
 .rh-total .rh-name{color:var(--muted);font-weight:500}
 .rh-grid{display:grid;grid-template-columns:repeat(var(--n),1fr);gap:2px}
 .rh .c{height:18px;border-radius:2px}
 .c.b0{background:var(--h0)}.c.b1{background:var(--h1)}.c.b2{background:var(--h2)}.c.b3{background:var(--h3)}.c.b4{background:var(--h4)}.c.b5{background:var(--h5)}
-.rh .c:hover{outline:2px solid var(--fg);outline-offset:-1px}
+.rh .c:hover{outline:2px solid var(--ink);outline-offset:-1px}
 .rh-total .bar{height:40px;display:flex;align-items:flex-end}
 .rh-total .bar i{display:block;width:100%;background:var(--accent);border-radius:2px 2px 0 0}
-.rh-total .bar:hover i{background:var(--fg)}
+.rh-total .bar:hover i{background:var(--ink)}
 .rh-axis .rh-grid span{font-size:.7rem;color:var(--muted);white-space:nowrap;overflow:visible;height:1rem}
 .rh-legend{display:flex;flex-wrap:wrap;align-items:center;gap:3px;font-size:.8rem;color:var(--muted);margin:.5rem 0 0}
 .rh-legend .c{display:inline-block;width:14px;height:12px;border-radius:2px}
