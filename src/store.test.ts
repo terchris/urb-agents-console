@@ -1,7 +1,7 @@
 // One set of behaviours, run against both stores. The Postgres half runs only when
 // TEST_DATABASE_URL names a database it may wipe (CI sets one; locally, any throwaway Postgres).
 import { SQL } from "bun";
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import type { Event } from "./event";
 import { MemoryStore, PgStore, type WritableStore } from "./store";
 
@@ -13,8 +13,10 @@ const ev = (id: string, at: string, over: Partial<Event> = {}): Event => ({
 const url = process.env.TEST_DATABASE_URL;
 const stores: [string, () => Promise<WritableStore>][] = [["memory", async () => new MemoryStore()]];
 if (url) {
+  // One client for the whole file: a new pool per test runs Postgres out of connections.
+  const sql = new SQL(url);
+  afterAll(() => sql.close());
   stores.push(["postgres", async () => {
-    const sql = new SQL(url);
     await sql.unsafe("DROP TABLE IF EXISTS events, collector_mark");
     await sql.unsafe(await Bun.file(new URL("../config/init-database.sql", import.meta.url)).text());
     return new PgStore(sql);
@@ -95,6 +97,24 @@ for (const [name, make] of stores) {
           { from: "imac", to: "ops-dev", events: 1, opened: 1, replies: 0 },
         ],
         nodes: [{ id: "imac", events: 4 }, { id: "ops-dev", events: 4 }, { id: "atlas", events: 1 }],
+      });
+    });
+
+    test("activity counts events into buckets: the fleet's total, and each agent once per event", async () => {
+      const origin = Date.parse("2026-09-28T06:00:00Z"), size = 3_600_000;
+      await s.collect([
+        ev("1", "2026-09-28T06:10:00.000Z", { kind: "opened", from: "ops-dev", to: "imac", by: null }),
+        ev("2", "2026-09-28T06:50:00.000Z", { kind: "replied", from: "ops-dev", to: "imac", by: "imac" }),
+        ev("3", "2026-09-28T08:00:00.000Z", { kind: "moved", from: "ops-dev", to: "ops-dev", by: null }),
+        ev("x", "2026-09-28T05:59:59.000Z", { from: "atlas" }), // before the first bucket
+        ev("y", "2026-09-28T09:00:00.000Z", { from: "atlas" }), // after the last
+      ], null);
+      expect(await s.activity({ origin, size, count: 3 })).toEqual({
+        total: [2, 0, 1],
+        agents: [
+          { id: "ops-dev", counts: [2, 0, 1], events: 3 },
+          { id: "imac", counts: [2, 0, 0], events: 2 },
+        ],
       });
     });
 

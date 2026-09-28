@@ -25,11 +25,18 @@ export type Network = { nodes: Node[]; links: Link[] };
 
 export type ReadOpts = { before?: Cursor; limit: number; agent?: string };
 
+// Events counted into fixed-size time buckets from `origin`: the fleet's total per bucket, and each
+// agent's involvement (as sender, recipient or replier; an event counts once per agent).
+export type ActivityOpts = { origin: number; size: number; count: number };
+export type Activity = { total: number[]; agents: { id: string; counts: number[]; events: number }[] };
+
 export interface Store {
   /** Newest first, strictly older than `before`, and only events `agent` took part in, when given. */
   readEvents(opts: ReadOpts): Promise<Event[]>;
   /** Who sent work to whom, and how much, at or after `since`. */
   network(since: Date): Promise<Network>;
+  /** Events per time bucket, for the fleet and for each agent. */
+  activity(opts: ActivityOpts): Promise<Activity>;
   /** Per id, from events at or after `since`. */
   agents(since: Date): Promise<AgentSummary[]>;
   /** How many events at or after `since`. */
@@ -67,6 +74,23 @@ export class PgStore implements WritableStore {
       ORDER BY at DESC, id DESC
       LIMIT ${limit}`;
     return rows.map(toEvent);
+  }
+
+  async activity({ origin, size, count }: ActivityOpts): Promise<Activity> {
+    const sql = this.sql;
+    const from = new Date(origin), until = new Date(origin + size * count);
+    // bucket index = floor((epoch ms - origin) / size), computed in Postgres so only counts travel
+    const b = sql`floor((extract(epoch FROM at) * 1000 - ${origin}) / ${size})::int`;
+    const [total, per] = await Promise.all([
+      sql`SELECT ${b} AS b, count(*)::int AS n FROM events WHERE at >= ${from} AND at < ${until} GROUP BY 1`,
+      sql`
+        SELECT agent, b, count(DISTINCT id)::int AS n FROM (
+          SELECT id, from_id AS agent, ${b} AS b FROM events WHERE at >= ${from} AND at < ${until}
+          UNION ALL SELECT id, to_id, ${b} FROM events WHERE at >= ${from} AND at < ${until} AND to_id IS NOT NULL
+          UNION ALL SELECT id, by_id, ${b} FROM events WHERE at >= ${from} AND at < ${until} AND by_id IS NOT NULL
+        ) roles GROUP BY agent, b`,
+    ]);
+    return shapeActivity(count, total as { b: number; n: number }[], per as { agent: string; b: number; n: number }[]);
   }
 
   async network(since: Date): Promise<Network> {
@@ -155,6 +179,22 @@ export class PgStore implements WritableStore {
   }
 }
 
+function shapeActivity(count: number, total: { b: number; n: number }[], per: { agent: string; b: number; n: number }[]): Activity {
+  const t = Array<number>(count).fill(0);
+  for (const r of total) if (r.b >= 0 && r.b < count) t[r.b] = r.n;
+  const by = new Map<string, number[]>();
+  for (const r of per) {
+    if (r.b < 0 || r.b >= count) continue;
+    const c = by.get(r.agent) ?? Array<number>(count).fill(0);
+    c[r.b] = r.n;
+    by.set(r.agent, c);
+  }
+  const agents = [...by].map(([id, counts]) => ({ id, counts, events: counts.reduce((a, n) => a + n, 0) }));
+  // busiest first; ties by id, in byte order
+  agents.sort((a, b) => b.events - a.events || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { total: t, agents };
+}
+
 function toEvent(r: Record<string, unknown>): Event {
   return {
     id: r.id as string,
@@ -179,6 +219,23 @@ export class MemoryStore implements WritableStore {
       .filter((e) => !before || e.at < before.at || (before.id !== null && e.at === before.at && e.id < before.id))
       .filter((e) => agent === undefined || e.from === agent || e.to === agent || e.by === agent)
       .slice(0, limit);
+  }
+
+  async activity({ origin, size, count }: ActivityOpts): Promise<Activity> {
+    const total = new Map<number, number>();
+    const per = new Map<string, { agent: string; b: number; n: number }>();
+    for (const e of this.events) {
+      const b = Math.floor((Date.parse(e.at) - origin) / size);
+      if (b < 0 || b >= count) continue;
+      total.set(b, (total.get(b) ?? 0) + 1);
+      for (const agent of new Set([e.from, e.to, e.by].filter((x): x is string => x !== null))) {
+        const k = `${agent}\u0000${b}`;
+        const r = per.get(k) ?? { agent, b, n: 0 };
+        r.n++;
+        per.set(k, r);
+      }
+    }
+    return shapeActivity(count, [...total].map(([b, n]) => ({ b, n })), [...per.values()]);
   }
 
   async network(since: Date): Promise<Network> {

@@ -16,10 +16,11 @@ import type { Event } from "./event";
 import type { Window } from "./api";
 import type { Laid } from "./network";
 import { Focus, NetworkSvg, NetworkTable, type Href } from "./network-view";
+import { RHYTHM_CSS, RhythmView, type Rhythm } from "./rhythm-view";
 import type { AgentSummary } from "./store";
+import { ZONE } from "./time";
 
 export const PAGE_SIZE = 100;
-const ZONE = process.env.TZ_DISPLAY ?? "Europe/Oslo";
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, hour: "2-digit", minute: "2-digit" });
 const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, weekday: "long", day: "numeric", month: "long" });
@@ -142,7 +143,7 @@ export function viewHref(v: View, p: { agent?: string | null; window?: Window; b
 }
 
 export type LiveProps = View & {
-  events: Event[]; agents: AgentSummary[]; total: number; network: Laid;
+  events: Event[]; agents: AgentSummary[]; total: number; network: Laid; rhythm: Rhythm;
   now: number; next: string | null; paged: boolean;
 };
 
@@ -167,6 +168,7 @@ export const Live: FC<LiveProps> = (p) => {
           <NetworkTable laid={p.network} agent={p.agent} />
         </section>
       )}
+      {p.paged ? null : <RhythmView r={p.rhythm} agent={p.agent} href={href} />}
       {p.paged ? null : <Agents agents={p.agents} now={p.now} window={p.window} href={href} />}
       <Timeline events={p.events} now={p.now} next={p.next} href={href} agent={p.agent} />
     </div>
@@ -247,7 +249,7 @@ export const Page: FC<LiveProps & { note?: string }> = (p) => (
       <meta name="viewport" content="width=device-width,initial-scale=1" />
       <title>The fleet, live</title>
       <meta name="description" content="Who sends work to whom in the Urbalurba agent fleet, close to real time." />
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: CSS + RHYTHM_CSS }} />
     </head>
     <body>
       <main>
@@ -264,7 +266,7 @@ export const Page: FC<LiveProps & { note?: string }> = (p) => (
             where the bus records one. Never a task's title, body or number.
             Agents that are not on the public list appear as <i>others</i>. Times are {ZONE.replace("_", " ")} time.
           </p>
-          <p>The same data as JSON: <a href="/v1/network">/v1/network</a> · <a href="/v1/events">/v1/events</a> · <a href="/v1/openapi.json">OpenAPI 3.1</a></p>
+          <p>The same data as JSON: <a href="/v1/network">/v1/network</a> · <a href="/v1/activity">/v1/activity</a> · <a href="/v1/events">/v1/events</a> · <a href="/v1/openapi.json">OpenAPI 3.1</a></p>
         </footer>
       </main>
       <div id="tip" role="tooltip" hidden />

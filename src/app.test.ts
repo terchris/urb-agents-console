@@ -77,6 +77,21 @@ test("network serves the pairs and nodes over a window, and refuses an unknown w
   expect((await app.request("/v1/events?agent=rc-eval")).status).toBe(400);
 });
 
+test("activity serves one bucket per hour for 24h, the last holding now", async () => {
+  const now = Date.now();
+  const app = await withEvents([
+    ev("1", new Date(now - 60_000).toISOString(), { kind: "opened", from: "ops-dev", to: "imac", by: null }),
+    ev("2", new Date(now - 5 * 3_600_000).toISOString(), { kind: "opened", from: "atlas", to: "imac", by: null }),
+  ]);
+  const a = await json(await app.request("/v1/activity"));
+  expect(a.bucket.size).toBe("1h");
+  expect(a.buckets).toHaveLength(24);
+  expect(a.total.reduce((x: number, n: number) => x + n, 0)).toBe(2);
+  expect(a.total[23]).toBe(1);
+  expect(a.agents[0]).toEqual({ id: "imac", counts: expect.any(Array), events: 2 });
+  expect((await json(await app.request("/v1/activity?window=30d"))).buckets).toHaveLength(30);
+});
+
 test("the API is read-only", async () => {
   const r = await createApp(new MemoryStore()).request("/v1/events", { method: "POST", body: "{}" });
   expect([404, 405]).toContain(r.status);
@@ -101,7 +116,7 @@ test("the API describes itself as OpenAPI 3.1, and the Event schema is exactly t
   expect(r.headers.get("access-control-allow-origin")).toBe("*");
   const doc = await json(r);
   expect(doc.openapi).toBe("3.1.0");
-  expect(Object.keys(doc.paths).sort()).toEqual(["/agents", "/events", "/network"]);
+  expect(Object.keys(doc.paths).sort()).toEqual(["/activity", "/agents", "/events", "/network"]);
   const event = doc.components.schemas.Event;
   expect(Object.keys(event.properties).sort()).toEqual([...EVENT_FIELDS].sort());
   expect(event.additionalProperties).toBe(false);

@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { ALLOWLIST, OTHERS } from "./allowlist";
 import { createApi, cursorOf, parseCursor, WINDOWS, type Window } from "./api";
 import { layout } from "./network";
+import { bucketsFor } from "./time";
 import { Embed, Live, PAGE_SIZE, Page, type LiveProps } from "./page";
 import { MemoryStore, PgStore, type Cursor, type Store } from "./store";
 
@@ -36,15 +37,18 @@ export function createApp(store: Store, note?: string) {
   const live = async (v: { window: Window; agent?: string; before?: Cursor }): Promise<LiveProps> => {
     const now = Date.now();
     const since = new Date(now - WINDOWS[v.window]);
-    const [events, agents, total, net] = await Promise.all([
+    const { size, starts } = bucketsFor(v.window, now);
+    const [events, agents, total, net, act] = await Promise.all([
       store.readEvents({ limit: PAGE_SIZE, before: v.before, agent: v.agent }),
       v.before ? Promise.resolve([]) : store.agents(since),
       v.before ? Promise.resolve(0) : store.count(since),
       v.before ? Promise.resolve({ nodes: [], links: [] }) : store.network(since),
+      v.before ? Promise.resolve({ total: [], agents: [] }) : store.activity({ origin: starts[0]!, size, count: starts.length }),
     ]);
     const last = events[events.length - 1];
     return {
       window: v.window, agent: v.agent, events, agents, total, network: layout(net), now,
+      rhythm: { ...act, window: v.window, starts, size },
       next: events.length === PAGE_SIZE && last ? cursorOf(last) : null, paged: !!v.before,
     };
   };

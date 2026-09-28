@@ -22,7 +22,7 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 | # | What | Why this one |
 |---|---|---|
 | **1** | [PLAN-002](../active/PLAN-002-network-view.md): the live network (who talks to whom), its embed and `/v1/network` | Terje: *"the most important here is to visualise … who talks to who"*. Buildable with today's feed ([INVESTIGATE-fleet-visualisation](INVESTIGATE-fleet-visualisation.md)) |
-| **2** | View 4, rhythm: activity per hour and `/v1/activity` | Defined for phase 1 in the fleet's investigation; buildable today |
+| **2** | [PLAN-003](../active/PLAN-003-rhythm-view.md): the rhythm view and `/v1/activity`. **Built; awaiting Terje's review before push** | Defined for phase 1 in the fleet's investigation (activity per hour) |
 | **3** | Two contract questions left on #1651: is a truncated window signalled, and which variable carries the token in a container | Only these can still change the collector |
 
 ## Waiting on someone — ordered by what it unblocks

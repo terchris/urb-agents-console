@@ -77,7 +77,7 @@ Tasks grouped by initiative (`context_id`), with `refs` drawn as "this task led 
 For example: *cli-v0.5.48: 1 release → 6 deploys → 6 done, in 2 hours*, with each agent's part.
 This is the most direct answer to Terje's question, and it depends most on the bus.
 
-### 4. Rhythm: activity per hour. Buildable today
+### 4. Rhythm: activity per hour. Built (PLAN-003)
 
 A heat strip of agents by hour, one hue, light to dark, over 24 hours or 7 days. It shows who is
 busy when, and who idles while others work. `GET /v1/activity` serves "activity per hour" for the

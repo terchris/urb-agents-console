@@ -10,6 +10,7 @@ import { cors } from "hono/cors";
 import { ALLOWLIST, OTHERS } from "./allowlist";
 import { KINDS, SCHEMA, type Event } from "./event";
 import type { Cursor, Store } from "./store";
+import { BUCKETS, bucketsFor, ZONE } from "./time";
 
 const CACHE = "public, max-age=30";
 
@@ -67,6 +68,7 @@ const Problem = z.object({ error: z.string() }).openapi("Problem");
 // The time windows the page and the API offer. Fixed, so a response is cacheable and a link is shareable.
 export const WINDOWS = { "24h": 86_400_000, "7d": 7 * 86_400_000, "30d": 30 * 86_400_000 } as const;
 export type Window = keyof typeof WINDOWS;
+const BUCKET_SIZE = { "24h": "1h", "7d": "6h", "30d": "1d" } as const satisfies Record<Window, string>;
 const WindowParam = z.enum(Object.keys(WINDOWS) as [Window, ...Window[]]).default("24h")
   .openapi({ description: "How far back to look" });
 const AgentParam = z.string().refine((v) => v === OTHERS || ALLOWLIST.has(v), "not an agent this feed names")
@@ -119,6 +121,36 @@ const eventsRoute = createRoute({
   },
 });
 
+const ActivitySchema = z
+  .object({
+    schema: z.literal(SCHEMA),
+    window: z.enum(Object.keys(WINDOWS) as [Window, ...Window[]]),
+    bucket: z.object({
+      size: z.enum(["1h", "6h", "1d"]),
+      zone: z.string().openapi({ description: "Bucket edges sit on this zone's clock", example: "Europe/Oslo" }),
+    }),
+    buckets: z.array(z.string().datetime()).openapi({ description: "The start of each bucket, oldest first. The last one holds now." }),
+    total: z.array(z.number().int()).openapi({ description: "All events per bucket" }),
+    agents: z.array(z.object({
+      id: Agent,
+      counts: z.array(z.number().int()).openapi({ description: "Events it took part in, per bucket, as sender, recipient or replier" }),
+      events: z.number().int(),
+    }).strict().openapi("AgentActivity")).openapi({ description: "Busiest first; agents with no events in the window are left out" }),
+    note: z.string().optional(),
+  })
+  .openapi("Activity");
+
+const activityRoute = createRoute({
+  method: "get",
+  path: "/activity",
+  summary: "When the fleet works and rests: events per hour (24h), per 6 hours (7d) or per day (30d)",
+  request: { query: z.object({ window: WindowParam }) },
+  responses: {
+    200: { description: "Counts per bucket, for the fleet and per agent", content: { "application/json": { schema: ActivitySchema } } },
+    400: { description: "A query parameter is not valid", content: { "application/json": { schema: Problem } } },
+  },
+});
+
 const networkRoute = createRoute({
   method: "get",
   path: "/network",
@@ -166,6 +198,17 @@ export function createApi(store: Store, note?: string) {
     const since = new Date(Date.now() - WINDOWS[window]);
     c.header("Cache-Control", CACHE);
     return c.json({ schema: SCHEMA, window, since: since.toISOString(), ...(await store.network(since)), ...(note ? { note } : {}) }, 200);
+  });
+
+  api.openapi(activityRoute, async (c) => {
+    const { window } = c.req.valid("query");
+    const { size, starts } = bucketsFor(window, Date.now());
+    const a = await store.activity({ origin: starts[0]!, size, count: starts.length });
+    c.header("Cache-Control", CACHE);
+    return c.json({
+      schema: SCHEMA, window, bucket: { size: BUCKET_SIZE[window], zone: ZONE },
+      buckets: starts.map((t) => new Date(t).toISOString()), ...a, ...(note ? { note } : {}),
+    }, 200);
   });
 
   api.openapi(agentsRoute, async (c) => {
