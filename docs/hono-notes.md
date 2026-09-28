@@ -39,6 +39,11 @@ repository. Newest entries go at the bottom of each section, and each one gives 
   server starts in *development* mode ("Started development server"), which can show visitors
   detailed error pages.
 
+- **2026-09-28: ICU data changes between Bun releases.** `Intl.DateTimeFormat("en-GB", { month: "short" })`
+  gives "Sep" on Bun 1.4.0 and "Sept" on 1.4.2. Local, CI (`setup-bun` latest) and the image
+  (`oven/bun:1`) can each run a different Bun, so a test that pins a formatted date passes locally
+  and fails in CI. Test formatted dates loosely, or pin one Bun version everywhere.
+
 ## Hono
 
 - **2026-09-28: `@hono/zod-openapi` gives OpenAPI 3.1 from the code, and it works well.**

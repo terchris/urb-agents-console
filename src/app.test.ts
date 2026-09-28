@@ -80,7 +80,8 @@ test("network serves the pairs and nodes over a window, and refuses an unknown w
 test("activity serves one bucket per hour for 24h, the last holding now", async () => {
   const now = Date.now();
   const app = await withEvents([
-    ev("1", new Date(now - 60_000).toISOString(), { kind: "opened", from: "ops-dev", to: "imac", by: null }),
+    // at `now` itself: "a minute ago" falls in the previous hour during each hour's first minute
+    ev("1", new Date(now).toISOString(), { kind: "opened", from: "ops-dev", to: "imac", by: null }),
     ev("2", new Date(now - 5 * 3_600_000).toISOString(), { kind: "opened", from: "atlas", to: "imac", by: null }),
   ]);
   const a = await json(await app.request("/v1/activity"));
