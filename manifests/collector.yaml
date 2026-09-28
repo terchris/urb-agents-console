@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
         - name: collector
-          image: ghcr.io/terchris/urb-agents-console:33f20fe-20260928194603
+          image: ghcr.io/terchris/urb-agents-console:3d45305-20260928200231
           command: ["bun", "run", "src/collector.ts"]
           env:
             - name: COLLECT_INTERVAL_SECONDS

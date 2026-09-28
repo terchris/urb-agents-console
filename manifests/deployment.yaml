@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/terchris/urb-agents-console:33f20fe-20260928194603
+          image: ghcr.io/terchris/urb-agents-console:3d45305-20260928200231
           ports:
             - containerPort: 3000
           env:
