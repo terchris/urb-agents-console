@@ -23,6 +23,7 @@ The console reads marketing's public `agents.json` (#1687): its `named` list dec
 | Fail safe | The collector re-reads the list every hour and saves the last good one in Postgres (`naming`). If marketing's site cannot be reached it uses the saved list, and with no list at all it **does not collect**. It never falls back to naming everyone. |
 | Removals apply backwards | When an id leaves the list, `store.setNamed` folds it to `others` in every row already stored (`from`, `to`, `by`), in the same transaction that saves the list. |
 | Faces, not copies | Avatars load from `https://marketing.urbalurba.com/avatars/<id>.svg`; nothing is copied into this repo. Roles and page links come from `agents.json`. Every field is validated: ids shaped like bus ids, the role as short plain text, URLs https on marketing's host, or dropped. |
+| Agent cards | **Not on the public side** (Terje, 2026-09-29). Cards (`fleet/agent-cards/<id>.yaml` in the private urb-agents) are written for the private bus, which is why marketing rewrites rather than copies them. They come in phase 2, behind a login. The public agent view uses marketing's description only (#1689). |
 | When it is read | The web app reads `agents.json` at start and every 10 minutes, in the background, never on a visitor's request. |
 
 ## What changed
@@ -49,3 +50,4 @@ The console reads marketing's public `agents.json` (#1687): its `named` list dec
 - [x] Nothing of marketing's is copied into this repo
 - [ ] Terje reviews it before it is pushed (pushing is publishing)
 - [ ] Tell marketing on the bus the day the collector runs (#1687)
+- [ ] An agent profile panel on `?agent=<id>` from marketing's `summary`, `does`, `skills`, `product` and `repository`, once she adds them to `agents.json` (#1689)
