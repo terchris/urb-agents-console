@@ -61,6 +61,22 @@ test("a bad query is a 400 with one short sentence", async () => {
   }
 });
 
+test("network serves the pairs and nodes over a window, and refuses an unknown window or agent", async () => {
+  const now = Date.now();
+  const app = await withEvents([
+    ev("1", new Date(now - 60_000).toISOString(), { kind: "opened", from: "ops-dev", to: "imac", by: null }),
+    ev("2", new Date(now - 3 * 86_400_000).toISOString(), { kind: "opened", from: "atlas", to: "imac", by: null }),
+  ]);
+  const day = await json(await app.request("/v1/network"));
+  expect(day.window).toBe("24h");
+  expect(day.links).toEqual([{ from: "ops-dev", to: "imac", events: 1, opened: 1, replies: 0 }]);
+  const week = await json(await app.request("/v1/network?window=7d"));
+  expect(week.links).toHaveLength(2);
+  expect((await app.request("/v1/network?window=1y")).status).toBe(400);
+  expect((await json(await app.request("/v1/events?agent=atlas"))).events.map((e: Event) => e.id)).toEqual(["2"]);
+  expect((await app.request("/v1/events?agent=rc-eval")).status).toBe(400);
+});
+
 test("the API is read-only", async () => {
   const r = await createApp(new MemoryStore()).request("/v1/events", { method: "POST", body: "{}" });
   expect([404, 405]).toContain(r.status);
@@ -85,7 +101,7 @@ test("the API describes itself as OpenAPI 3.1, and the Event schema is exactly t
   expect(r.headers.get("access-control-allow-origin")).toBe("*");
   const doc = await json(r);
   expect(doc.openapi).toBe("3.1.0");
-  expect(Object.keys(doc.paths).sort()).toEqual(["/agents", "/events"]);
+  expect(Object.keys(doc.paths).sort()).toEqual(["/agents", "/events", "/network"]);
   const event = doc.components.schemas.Event;
   expect(Object.keys(event.properties).sort()).toEqual([...EVENT_FIELDS].sort());
   expect(event.additionalProperties).toBe(false);
@@ -132,6 +148,36 @@ test("the page pages back without JavaScript, and a bad cursor goes home", async
   const bad = await app.request("/?before=nonsense");
   expect(bad.status).toBe(302);
   expect(bad.headers.get("location")).toBe("/");
+});
+
+test("the page leads with the network, and following an agent emphasises its links", async () => {
+  const now = Date.now();
+  const app = await withEvents([
+    ev("1", new Date(now - 60_000).toISOString(), { kind: "opened", from: "ops-dev", to: "imac", by: null }),
+    ev("2", new Date(now - 50_000).toISOString(), { kind: "opened", from: "atlas", to: "tor-agent", by: null }),
+  ]);
+  const all = await (await app.request("/")).text();
+  expect(all).toContain('<svg class="net"');
+  expect(all).toContain('data-pair="ops-dev&gt;imac"');
+  expect(all).toContain("Show as a table (2 connections)");
+  const one = await (await app.request("/?agent=imac")).text();
+  expect(one).toContain('<svg class="net has-sel"');
+  expect(one).toMatch(/class="link hot" data-pair="ops-dev&gt;imac"/);
+  expect(one).toMatch(/class="link" data-pair="atlas&gt;tor-agent"/);
+  expect(one).toContain("Following <b>imac</b>");
+  expect((await app.request("/?agent=rc-eval")).status).toBe(302);
+  expect((await app.request("/?window=1y")).status).toBe(302);
+});
+
+test("the embed is the network alone, its links open the full page at the top", async () => {
+  const app = await withEvents([ev("1", new Date().toISOString(), { kind: "opened", from: "ops-dev", to: "imac", by: null })]);
+  const r = await app.request("/embed/network?window=7d");
+  expect(r.status).toBe(200);
+  const html = await r.text();
+  expect(html).toContain('<svg class="net"');
+  expect(html).toContain('target="_top"');
+  expect(html).not.toContain('id="live"');
+  expect((await app.request("/embed/network?agent=imac")).status).toBe(400);
 });
 
 test("the live partial is the fragment only, never cached", async () => {

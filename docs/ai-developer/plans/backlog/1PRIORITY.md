@@ -21,8 +21,9 @@ Fleet work is on the bus in `terchris/urb-agents` — `~/.local/bin/urb inbox --
 
 | # | What | Why this one |
 |---|---|---|
-| **1** | [PLAN-001](../active/PLAN-001-phase1-fleet-live.md) phase 4: the frontend in Hono JSX, reading `/v1/events` | Phases 1–3 are done (schema, collector, OpenAPI 3.1 API), so the page is what's left that waits on nobody. Terje reads it before it's public |
-| **2** | Two contract questions left on #1651: is a truncated window signalled, and which variable carries the token in a container | Only these can still change the collector; `urb events` itself shipped in 0.5.48 and the collector already reads it |
+| **1** | [PLAN-002](../active/PLAN-002-network-view.md): the live network (who talks to whom), its embed and `/v1/network` | Terje: *"the most important here is to visualise … who talks to who"*. Buildable with today's feed ([INVESTIGATE-fleet-visualisation](INVESTIGATE-fleet-visualisation.md)) |
+| **2** | View 4, rhythm: activity per hour and `/v1/activity` | Defined for phase 1 in the fleet's investigation; buildable today |
+| **3** | Two contract questions left on #1651: is a truncated window signalled, and which variable carries the token in a container | Only these can still change the collector |
 
 ## Waiting on someone — ordered by what it unblocks
 

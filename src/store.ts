@@ -17,9 +17,19 @@ export type AgentSummary = {
   lastSeen: string; // the latest event it took part in, in any role
 };
 
+// The network over a window: one link per ordered pair (the task's sender → its recipient), and
+// how many events each agent took part in, in any role.
+export type Link = { from: string; to: string; events: number; opened: number; replies: number };
+export type Node = { id: string; events: number };
+export type Network = { nodes: Node[]; links: Link[] };
+
+export type ReadOpts = { before?: Cursor; limit: number; agent?: string };
+
 export interface Store {
-  /** Newest first, strictly older than `before` when given. */
-  readEvents(opts: { before?: Cursor; limit: number }): Promise<Event[]>;
+  /** Newest first, strictly older than `before`, and only events `agent` took part in, when given. */
+  readEvents(opts: ReadOpts): Promise<Event[]>;
+  /** Who sent work to whom, and how much, at or after `since`. */
+  network(since: Date): Promise<Network>;
   /** Per id, from events at or after `since`. */
   agents(since: Date): Promise<AgentSummary[]>;
   /** How many events at or after `since`. */
@@ -43,19 +53,46 @@ export class PgStore implements WritableStore {
     return url ? new PgStore(new SQL(url)) : null;
   }
 
-  async readEvents({ before, limit }: { before?: Cursor; limit: number }): Promise<Event[]> {
+  async readEvents({ before, limit, agent }: ReadOpts): Promise<Event[]> {
     const sql = this.sql;
-    const where = !before
-      ? sql``
+    const older = !before
+      ? sql`true`
       : before.id === null
-        ? sql`WHERE at < ${before.at}`
-        : sql`WHERE (at, id) < (${before.at}::timestamptz, ${before.id})`;
+        ? sql`at < ${before.at}`
+        : sql`(at, id) < (${before.at}::timestamptz, ${before.id})`;
+    const who = agent === undefined ? sql`true` : sql`(from_id = ${agent} OR to_id = ${agent} OR by_id = ${agent})`;
     const rows = await sql`
       SELECT id, at, kind, from_id, to_id, by_id, state, provider, model
-      FROM events ${where}
+      FROM events WHERE ${older} AND ${who}
       ORDER BY at DESC, id DESC
       LIMIT ${limit}`;
     return rows.map(toEvent);
+  }
+
+  async network(since: Date): Promise<Network> {
+    const sql = this.sql;
+    const [links, nodes] = await Promise.all([
+      sql`
+        SELECT from_id, to_id, count(*)::int AS events,
+               count(*) FILTER (WHERE kind = 'opened')::int  AS opened,
+               count(*) FILTER (WHERE kind = 'replied')::int AS replies
+        FROM events WHERE at >= ${since} AND to_id IS NOT NULL
+        GROUP BY from_id, to_id
+        ORDER BY count(*) DESC, from_id COLLATE "C", to_id COLLATE "C"`,
+      sql`
+        SELECT agent, count(DISTINCT id)::int AS events FROM (
+          SELECT id, from_id AS agent FROM events WHERE at >= ${since}
+          UNION ALL SELECT id, to_id FROM events WHERE at >= ${since} AND to_id IS NOT NULL
+          UNION ALL SELECT id, by_id FROM events WHERE at >= ${since} AND by_id IS NOT NULL
+        ) roles GROUP BY agent ORDER BY count(DISTINCT id) DESC, agent COLLATE "C"`,
+    ]);
+    return {
+      links: links.map((r: Record<string, unknown>) => ({
+        from: r.from_id as string, to: r.to_id as string,
+        events: r.events as number, opened: r.opened as number, replies: r.replies as number,
+      })),
+      nodes: nodes.map((r: Record<string, unknown>) => ({ id: r.agent as string, events: r.events as number })),
+    };
   }
 
   async agents(since: Date): Promise<AgentSummary[]> {
@@ -137,10 +174,34 @@ export class MemoryStore implements WritableStore {
   events: Event[] = [];
   mark: Date | null = null;
 
-  async readEvents({ before, limit }: { before?: Cursor; limit: number }): Promise<Event[]> {
+  async readEvents({ before, limit, agent }: ReadOpts): Promise<Event[]> {
     return this.sorted()
       .filter((e) => !before || e.at < before.at || (before.id !== null && e.at === before.at && e.id < before.id))
+      .filter((e) => agent === undefined || e.from === agent || e.to === agent || e.by === agent)
       .slice(0, limit);
+  }
+
+  async network(since: Date): Promise<Network> {
+    const links = new Map<string, Link>();
+    const involved = new Map<string, Set<string>>();
+    const touch = (agent: string, id: string) => involved.set(agent, (involved.get(agent) ?? new Set()).add(id));
+    for (const e of this.events) {
+      if (e.at < since.toISOString()) continue;
+      touch(e.from, e.id);
+      if (e.to !== null) touch(e.to, e.id);
+      if (e.by !== null) touch(e.by, e.id);
+      if (e.to === null) continue;
+      const k = `${e.from}\u0000${e.to}`;
+      const l = links.get(k) ?? { from: e.from, to: e.to, events: 0, opened: 0, replies: 0 };
+      l.events++;
+      if (e.kind === "opened") l.opened++;
+      if (e.kind === "replied") l.replies++;
+      links.set(k, l);
+    }
+    return {
+      links: [...links.values()].sort((a, b) => b.events - a.events || cmp(a.from, b.from) || cmp(a.to, b.to)),
+      nodes: [...involved].map(([id, s]) => ({ id, events: s.size })).sort((a, b) => b.events - a.events || cmp(a.id, b.id)),
+    };
   }
 
   async agents(since: Date): Promise<AgentSummary[]> {

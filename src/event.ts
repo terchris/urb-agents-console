@@ -29,7 +29,7 @@ export type Event = {
 
 // The public field list, in order. The API test checks that no response carries anything else.
 export const EVENT_FIELDS = ["id", "at", "kind", "from", "to", "by", "state", "provider", "model"] as const;
-export const SCHEMA = "urb-events/1";
+export const SCHEMA = "urb-events/1" as const;
 
 // Shapes the free-text fields may take. Anything else is not stored: a value that fails is
 // null (or, for a required field, the row is dropped), so an unexpected string can never be

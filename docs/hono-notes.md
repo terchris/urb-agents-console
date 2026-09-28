@@ -59,4 +59,11 @@ repository. Newest entries go at the bottom of each section, and each one gives 
 - **2026-09-28: a partial made of the same component is the easy way to go live.** `/partials/live`
   returns `<Live />` alone, and a 20-line script swaps it in every 30 s. There's one markup for the
   first render and every refresh, and no client framework: htmx-style, without htmx.
+- **2026-09-28: SVG in JSX works as it should.** The network is `<svg>`, `<path>`, `<a>` and
+  `<title>` straight from a Hono component, with the geometry computed in plain TypeScript
+  (`src/network.ts`) and unit-tested apart from the markup. SVG attributes keep their SVG names
+  (`stroke-width`, `text-anchor`, `dominant-baseline`); nothing is camel-cased. A `style` string
+  carries a CSS variable per element (`--w` for a link's opacity).
+- **2026-09-28: attribute values are escaped for you.** `data-pair={"ops-dev>imac"}` renders as
+  `ops-dev&gt;imac`, so tests match on the escaped form, while the browser's `dataset` gives back `>`.
 

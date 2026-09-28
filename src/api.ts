@@ -7,7 +7,7 @@
 // strict: nothing else can be described or served.
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
-import { OTHERS } from "./allowlist";
+import { ALLOWLIST, OTHERS } from "./allowlist";
 import { KINDS, SCHEMA, type Event } from "./event";
 import type { Cursor, Store } from "./store";
 
@@ -64,6 +64,34 @@ const AgentsPage = z
 
 const Problem = z.object({ error: z.string() }).openapi("Problem");
 
+// The time windows the page and the API offer. Fixed, so a response is cacheable and a link is shareable.
+export const WINDOWS = { "24h": 86_400_000, "7d": 7 * 86_400_000, "30d": 30 * 86_400_000 } as const;
+export type Window = keyof typeof WINDOWS;
+const WindowParam = z.enum(Object.keys(WINDOWS) as [Window, ...Window[]]).default("24h")
+  .openapi({ description: "How far back to look" });
+const AgentParam = z.string().refine((v) => v === OTHERS || ALLOWLIST.has(v), "not an agent this feed names")
+  .openapi({ description: `A bus id the feed names, or \`${OTHERS}\``, example: "ops-dev" });
+
+const NetworkSchema = z
+  .object({
+    schema: z.literal(SCHEMA),
+    window: z.enum(Object.keys(WINDOWS) as [Window, ...Window[]]),
+    since: z.string().datetime(),
+    nodes: z.array(z.object({
+      id: Agent,
+      events: z.number().int().openapi({ description: "Events it took part in, in any role" }),
+    }).strict().openapi("NetworkNode")),
+    links: z.array(z.object({
+      from: Agent.openapi({ description: "The tasks' sender" }),
+      to: Agent.openapi({ description: "The tasks' recipient" }),
+      events: z.number().int().openapi({ description: "All events on tasks between the two, in this direction" }),
+      opened: z.number().int().openapi({ description: "Tasks opened" }),
+      replies: z.number().int().openapi({ description: "Replies written, by either side" }),
+    }).strict().openapi("NetworkLink")),
+    note: z.string().optional(),
+  })
+  .openapi("Network");
+
 // `before` is an ISO time, or `<time>~<id>` exactly as `next` gives it.
 export function parseCursor(v: string): Cursor | null {
   const [at, id, ...rest] = v.split("~");
@@ -82,10 +110,22 @@ const eventsRoute = createRoute({
       before: z.string().optional().refine((v) => v === undefined || parseCursor(v) !== null, "an ISO time, or a `next` value")
         .openapi({ description: "Only events older than this: an ISO time, or the `next` of the previous page" }),
       limit: z.coerce.number().int().min(1).max(500).default(100),
+      agent: AgentParam.optional().openapi({ description: "Only events this agent took part in, as sender, recipient or replier" }),
     }),
   },
   responses: {
     200: { description: "A page of events", content: { "application/json": { schema: EventsPage } } },
+    400: { description: "A query parameter is not valid", content: { "application/json": { schema: Problem } } },
+  },
+});
+
+const networkRoute = createRoute({
+  method: "get",
+  path: "/network",
+  summary: "Who sends work to whom, and how much: the network over a window",
+  request: { query: z.object({ window: WindowParam }) },
+  responses: {
+    200: { description: "Nodes and directed links", content: { "application/json": { schema: NetworkSchema } } },
     400: { description: "A query parameter is not valid", content: { "application/json": { schema: Problem } } },
   },
 });
@@ -114,11 +154,18 @@ export function createApi(store: Store, note?: string) {
   api.use("*", cors({ origin: "*", allowMethods: ["GET", "HEAD", "OPTIONS"] }));
 
   api.openapi(eventsRoute, async (c) => {
-    const { before, limit } = c.req.valid("query");
-    const events = await store.readEvents({ limit, before: before ? parseCursor(before)! : undefined });
+    const { before, limit, agent } = c.req.valid("query");
+    const events = await store.readEvents({ limit, agent, before: before ? parseCursor(before)! : undefined });
     c.header("Cache-Control", CACHE);
     const last = events[events.length - 1];
     return c.json({ schema: SCHEMA, events, next: events.length === limit && last ? cursorOf(last) : null, ...(note ? { note } : {}) }, 200);
+  });
+
+  api.openapi(networkRoute, async (c) => {
+    const { window } = c.req.valid("query");
+    const since = new Date(Date.now() - WINDOWS[window]);
+    c.header("Cache-Control", CACHE);
+    return c.json({ schema: SCHEMA, window, since: since.toISOString(), ...(await store.network(since)), ...(note ? { note } : {}) }, 200);
   });
 
   api.openapi(agentsRoute, async (c) => {

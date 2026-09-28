@@ -80,6 +80,33 @@ for (const [name, make] of stores) {
       expect(await s.count(new Date("2026-09-28T00:00:00Z"))).toBe(4);
     });
 
+    test("network counts each ordered pair and each agent's involvement", async () => {
+      await s.collect([
+        ev("1", "2026-09-28T07:00:00.000Z", { kind: "opened", from: "ops-dev", to: "imac" }),
+        ev("2", "2026-09-28T07:01:00.000Z", { kind: "replied", from: "ops-dev", to: "imac", by: "imac" }),
+        ev("3", "2026-09-28T07:02:00.000Z", { kind: "moved", from: "ops-dev", to: "imac" }),
+        ev("4", "2026-09-28T07:03:00.000Z", { kind: "opened", from: "imac", to: "ops-dev" }),
+        ev("5", "2026-09-28T07:04:00.000Z", { kind: "moved", from: "atlas", to: null }),
+        ev("0", "2026-09-27T07:00:00.000Z", { kind: "opened", from: "tor-agent", to: "imac" }),
+      ], null);
+      expect(await s.network(new Date("2026-09-28T00:00:00Z"))).toEqual({
+        links: [
+          { from: "ops-dev", to: "imac", events: 3, opened: 1, replies: 1 },
+          { from: "imac", to: "ops-dev", events: 1, opened: 1, replies: 0 },
+        ],
+        nodes: [{ id: "imac", events: 4 }, { id: "ops-dev", events: 4 }, { id: "atlas", events: 1 }],
+      });
+    });
+
+    test("readEvents can follow one agent in any role", async () => {
+      await s.collect([
+        ev("1", "2026-09-28T07:00:00.000Z", { from: "ops-dev", to: "imac", by: null }),
+        ev("2", "2026-09-28T07:01:00.000Z", { from: "atlas", to: "tor-agent", by: "imac" }),
+        ev("3", "2026-09-28T07:02:00.000Z", { from: "atlas", to: "tor-agent", by: null }),
+      ], null);
+      expect((await s.readEvents({ limit: 10, agent: "imac" })).map((e) => e.id)).toEqual(["2", "1"]);
+    });
+
     test("prune deletes only what is older than the cut", async () => {
       await s.collect([ev("old", "2026-06-01T00:00:00.000Z"), ev("new", "2026-09-28T00:00:00.000Z")], null);
       expect(await s.prune(new Date("2026-07-01T00:00:00Z"))).toBe(1);
