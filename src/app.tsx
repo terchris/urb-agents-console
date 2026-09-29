@@ -16,6 +16,11 @@ import { Embed, Live, PAGE_SIZE, Page, type LiveProps } from "./page";
 import { MemoryStore, PgStore, type Cursor, type Store } from "./store";
 
 export const NO_DATABASE = "The collector is not running yet — no events are collected. See terchris/urb-agents-console.";
+export const NOT_COLLECTING = "The collector has not run yet — the database is ready, but no events have been collected.";
+/** The page says Live only if the collector completed a run this recently (it runs every minute). */
+export const LIVE_WITHIN_MS = 5 * 60_000;
+export const stale = (ran: Date, now: number) =>
+  `No events collected for ${Math.round((now - ran.getTime()) / 60_000)} minutes — the collector may be down.`;
 
 /** The web app's copy of marketing's agent list (index.ts refreshes it). */
 export const directory = new DirectoryCache();
@@ -59,11 +64,23 @@ export function createApp(store: Store, note?: string, dir: DirectoryCache = dir
     };
   };
 
+  // What the page may honestly claim: no database, a database the collector has never filled,
+  // a collector that stopped, or live.
+  const status = async (): Promise<{ note?: string; live: boolean }> => {
+    if (note) return { note, live: false };
+    const ran = await store.lastCollected();
+    const now = Date.now();
+    if (!ran) return { note: NOT_COLLECTING, live: false };
+    if (now - ran.getTime() > LIVE_WITHIN_MS) return { note: stale(ran, now), live: false };
+    return { live: true };
+  };
+
   app.get("/", async (c) => {
     const v = view((k) => c.req.query(k));
     if (!v) return c.redirect("/");
     c.header("Cache-Control", "public, max-age=30");
-    return c.html("<!doctype html>" + (<Page {...await live(v)} note={note} />));
+    const st = await status();
+    return c.html("<!doctype html>" + (<Page {...await live(v)} note={st.note} live={st.live} />));
   });
 
   app.get("/partials/live", async (c) => {

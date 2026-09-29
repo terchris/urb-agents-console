@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createApp, NO_DATABASE } from "./app";
+import { createApp, NO_DATABASE, NOT_COLLECTING } from "./app";
 import { DirectoryCache, parseDirectory } from "./directory";
 import { EVENT_FIELDS, type Event } from "./event";
 import { MemoryStore } from "./store";
@@ -153,6 +153,21 @@ test("with no database the page says so, and does not fail", async () => {
   expect(html).toContain("No events yet.");
   expect(html).toContain('<span class="live-pill waiting"'); // it does not claim to be live
   expect(html).not.toContain('<span class="live-dot"'); // no live dot without a database
+});
+
+test("the page only says Live when the collector has run recently", async () => {
+  const s = new MemoryStore();
+  const fresh = await (await createApp(s).request("/")).text();
+  expect(fresh).toContain(NOT_COLLECTING); // a database, but the collector has never run
+  expect(fresh).toContain('<span class="live-pill waiting"');
+  await s.collect([ev("1", new Date().toISOString())], new Date());
+  const live = await (await createApp(s).request("/")).text();
+  expect(live).not.toContain(NOT_COLLECTING);
+  expect(live).toContain('<span class="live-dot"');
+  s.ran = new Date(Date.now() - 20 * 60_000);
+  const old = await (await createApp(s).request("/")).text();
+  expect(old).toContain("No events collected for 20 minutes");
+  expect(old).toContain('<span class="live-pill waiting"');
 });
 
 test("the page pages back without JavaScript, and a bad cursor goes home", async () => {

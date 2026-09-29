@@ -339,7 +339,7 @@ const EMBED_SCRIPT = `(() => {
   });
 })();`;
 
-export const Page: FC<LiveProps & { note?: string }> = (p) => (
+export const Page: FC<LiveProps & { note?: string; live?: boolean }> = (p) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -354,7 +354,7 @@ export const Page: FC<LiveProps & { note?: string }> = (p) => (
       <style dangerouslySetInnerHTML={{ __html: CSS + RHYTHM_CSS }} />
     </head>
     <body>
-      <TopBar window={p.window} agent={p.agent} live={!p.note} />
+      <TopBar window={p.window} agent={p.agent} live={p.live ?? !p.note} />
       <main class="wrap">
         <header class="hero">
           <h1>The fleet, live</h1>

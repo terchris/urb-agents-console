@@ -45,6 +45,8 @@ export interface Store {
   agents(since: Date): Promise<AgentSummary[]>;
   /** How many events at or after `since`. */
   count(since: Date): Promise<number>;
+  /** When the collector last completed a run, or null if it never has. */
+  lastCollected(): Promise<Date | null>;
 }
 
 export interface WritableStore extends Store {
@@ -163,6 +165,11 @@ export class PgStore implements WritableStore {
   async count(since: Date): Promise<number> {
     const [row] = await this.sql`SELECT count(*)::int AS n FROM events WHERE at >= ${since}`;
     return row.n as number;
+  }
+
+  async lastCollected(): Promise<Date | null> {
+    const [row] = await this.sql`SELECT ran FROM collector_mark WHERE name = ${MARK}`;
+    return row ? (row.ran as Date) : null;
   }
 
   async collect(events: Event[], mark: Date | null): Promise<number> {
@@ -352,11 +359,18 @@ export class MemoryStore implements WritableStore {
     return this.events.filter((e) => e.at >= since.toISOString()).length;
   }
 
+  ran: Date | null = null;
+
+  async lastCollected(): Promise<Date | null> {
+    return this.ran;
+  }
+
   async collect(events: Event[], mark: Date | null): Promise<number> {
     const seen = new Set(this.events.map((e) => e.id));
     const fresh = events.filter((e) => !seen.has(e.id) && seen.add(e.id));
     this.events.push(...fresh);
     if (mark && (!this.mark || mark > this.mark)) this.mark = mark;
+    if (mark) this.ran = new Date();
     return fresh.length;
   }
 
