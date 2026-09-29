@@ -68,7 +68,7 @@ authenticated or private endpoint behind `api-fleet`.** A browser will not send 
 | `src/event.ts`, `src/allowlist.ts` | the one door a bus row comes in by: known fields only, unlisted ids folded to `others` |
 | `src/store.ts` | `PgStore` (Bun.sql) and `MemoryStore`, one interface |
 | `src/collector.ts` | the collector: `urb events` → Postgres, every minute |
-| `config/init-database.sql` | the schema, applied by UIS (`uis configure postgresql --init-file`) |
+| `config/init-database.sql` | the schema, applied by UIS, **piped**: `cat config/init-database.sql \| uis configure postgresql --app urb-agents-console --namespace fleet --secret-name-prefix urb-agents-console --init-file -` (a path does not work, #1737). Re-run when it changes; check `\dt` |
 | `tools/fake-urb.ts` | stands in for `urb events` until it is released |
 | `src/index.ts` | the Bun entry point (port 3000) |
 | `src/*.test.ts` | `bun test` |

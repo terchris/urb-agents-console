@@ -3,6 +3,9 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - ingressroute-api.yaml
+# ⚠️ Never widen these labels to everything, and never list the database Secret here: if
+# urb-agents-console-db ever gets `app.kubernetes.io/instance` or is managed here, ArgoCD owns
+# it and will prune it, and with it the only copy of the credential (#1737, PLAN-001 5.1a).
 labels:
   - pairs:
       app: fleet

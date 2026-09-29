@@ -1,7 +1,12 @@
--- The console's schema. Applied by UIS, never by the app:
---   uis configure postgresql --app urb-agents-console --init-file config/init-database.sql
--- (the dev-templates convention, see python-basic-webserver-database). Every statement is
--- idempotent, so re-running it is safe.
+-- The console's schema. Applied by UIS, never by the app, PIPED from the host:
+--   cat config/init-database.sql | uis configure postgresql --app urb-agents-console \
+--     --namespace fleet --secret-name-prefix urb-agents-console --init-file -
+-- A path (`--init-file config/init-database.sql`) does NOT work: before UIS 1.6.176 it was
+-- silently ignored (no SQL applied, exit 0), and since then it is resolved inside the uis
+-- container, where this checkout is not mounted (tor-agent, #1737). `--namespace` and
+-- `--secret-name-prefix` write the Secret urb-agents-console-db where the pods run.
+-- Every statement is idempotent, so re-running it is safe: re-run it when this file changes.
+-- Check the result with \dt in the database, never by the exit code alone.
 --
 -- One row per `urb events` row, in the contract's shape (urb 0.5.48, "urb-events/1") and no wider.
 -- `from_id` / `to_id` are the task's sender and recipient; `by_id` is who acted, where the bus says.
